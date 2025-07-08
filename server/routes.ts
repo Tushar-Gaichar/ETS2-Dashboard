@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { readTelemetryData } from "./services/telemetry";
-import { telemetryDataSchema } from "@shared/schema";
+import { telemetryDataSchema, controlCommandSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // REST API endpoints
@@ -59,6 +59,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Client requesting latest telemetry data
             sendLatestTelemetry(ws);
             break;
+          case 'control_command':
+            // Client sending control command
+            handleControlCommand(data.data);
+            break;
         }
       } catch (error) {
         console.error('Error processing WebSocket message:', error);
@@ -103,6 +107,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         client.send(message);
       }
     });
+  }
+
+  // Function to handle control commands
+  function handleControlCommand(commandData: any) {
+    try {
+      const command = controlCommandSchema.parse(commandData);
+      console.log('Processing control command:', command);
+      
+      // In a real implementation, this would send the command to ETS2
+      // For now, we'll just log the command and send a confirmation
+      
+      // Map of ETS2 key bindings (these would be actual keyboard inputs in production)
+      const keyBindings: Record<string, string> = {
+        'toggle_engine': 'E',
+        'toggle_electric': 'Shift+E',
+        'toggle_lights_parking': 'F2',
+        'toggle_lights_beam_low': 'F3',
+        'toggle_lights_beam_high': 'F4',
+        'toggle_lights_beacon': 'F5',
+        'toggle_lights_aux_front': 'F6',
+        'toggle_lights_aux_roof': 'F7',
+        'horn_short': 'H',
+        'horn_long': 'Shift+H',
+        'toggle_cruise_control': 'C',
+        'toggle_retarder': 'R',
+        'toggle_differential_lock': 'D',
+        'toggle_lift_axle': 'L',
+        'toggle_trailer_lift_axle': 'Shift+L',
+        'shift_up': 'Up Arrow',
+        'shift_down': 'Down Arrow',
+        'toggle_range_splitter': 'S',
+      };
+      
+      const keyBinding = keyBindings[command.command];
+      if (keyBinding) {
+        console.log(`Would send keyboard input: ${keyBinding} for command: ${command.command}`);
+        
+        // In production, this would use a Windows API to send keystrokes to ETS2
+        // For development, we'll simulate the response
+        
+        // Broadcast command confirmation to all clients
+        const confirmationMessage = JSON.stringify({
+          type: 'command_confirmation',
+          data: {
+            command: command.command,
+            success: true,
+            message: `Command ${command.command} executed`
+          }
+        });
+        
+        connectedClients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(confirmationMessage);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error processing control command:', error);
+      
+      // Send error response to all clients
+      const errorMessage = JSON.stringify({
+        type: 'command_error',
+        data: {
+          error: 'Invalid command format',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      
+      connectedClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(errorMessage);
+        }
+      });
+    }
   }
 
   // Telemetry data polling and broadcasting

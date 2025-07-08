@@ -7,6 +7,7 @@ import TruckInfo from "@/components/truck-info";
 import JobInfo from "@/components/job-info";
 import StatusIndicators from "@/components/status-indicators";
 import NavigationInfo from "@/components/navigation-info";
+import BottomNavigation from "@/components/bottom-navigation";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
@@ -142,26 +143,7 @@ export default function Dashboard() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-surface-light">
-        <div className="grid grid-cols-4 h-16">
-          <button className="flex flex-col items-center justify-center space-y-1 text-primary">
-            <div className="h-4 w-4 flex items-center justify-center">📊</div>
-            <span className="text-xs">Dashboard</span>
-          </button>
-          <button className="flex flex-col items-center justify-center space-y-1 text-muted-foreground">
-            <div className="h-4 w-4 flex items-center justify-center">🗺️</div>
-            <span className="text-xs">Map</span>
-          </button>
-          <button className="flex flex-col items-center justify-center space-y-1 text-muted-foreground">
-            <div className="h-4 w-4 flex items-center justify-center">🎮</div>
-            <span className="text-xs">Controls</span>
-          </button>
-          <button className="flex flex-col items-center justify-center space-y-1 text-muted-foreground">
-            <div className="h-4 w-4 flex items-center justify-center">⚙️</div>
-            <span className="text-xs">Settings</span>
-          </button>
-        </div>
-      </nav>
+      <BottomNavigation />
 
       {/* Connection Modal */}
       <ConnectionModal

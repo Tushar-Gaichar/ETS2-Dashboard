@@ -85,3 +85,30 @@ export const connectionStatusSchema = z.object({
 });
 
 export type ConnectionStatus = z.infer<typeof connectionStatusSchema>;
+
+// Control commands schema for sending commands to the game
+export const controlCommandSchema = z.object({
+  command: z.enum([
+    'toggle_engine',
+    'toggle_electric',
+    'toggle_lights_parking',
+    'toggle_lights_beam_low',
+    'toggle_lights_beam_high',
+    'toggle_lights_beacon',
+    'toggle_lights_aux_front',
+    'toggle_lights_aux_roof',
+    'horn_short',
+    'horn_long',
+    'toggle_cruise_control',
+    'toggle_retarder',
+    'toggle_differential_lock',
+    'toggle_lift_axle',
+    'toggle_trailer_lift_axle',
+    'shift_up',
+    'shift_down',
+    'toggle_range_splitter',
+  ]),
+  value: z.boolean().optional(),
+});
+
+export type ControlCommand = z.infer<typeof controlCommandSchema>;
