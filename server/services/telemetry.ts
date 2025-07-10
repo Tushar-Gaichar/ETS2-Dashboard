@@ -81,7 +81,7 @@ async function checkETS2ServerConnection(): Promise<boolean> {
     }
   } catch (error) {
     if (isConnectedToETS2Server) {
-      console.log('❌ ETS2 telemetry server not available - using demo data');
+      console.log('❌ ETS2 telemetry server not available:', error.message);
       isConnectedToETS2Server = false;
     }
     return false;
@@ -117,7 +117,7 @@ export async function readTelemetryData(): Promise<TelemetryData | null> {
     return null;
     
   } catch (error) {
-    console.error('Error reading telemetry data:', error);
+    console.error('Error reading telemetry data:', error.message || error);
     // Return null on error (no demo data fallback)
     return null;
   }

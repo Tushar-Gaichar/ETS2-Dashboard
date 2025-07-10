@@ -77,6 +77,11 @@ export default function ConnectionModal({
           <p className="text-sm text-muted-foreground">
             Enter the URL or IP address of your PC running the Funbit ETS2 telemetry server (default port: 25555)
           </p>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mt-3">
+            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+              <strong>Network Note:</strong> If using a local IP (192.168.x.x), this only works when running the dashboard on the same network as your PC. For remote access, use your public IP with port forwarding.
+            </p>
+          </div>
           
           <div className="space-y-2">
             <Label htmlFor="server-address">Server Address</Label>
