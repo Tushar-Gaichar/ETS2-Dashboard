@@ -28,12 +28,7 @@ export default function Dashboard() {
     setIsConnecting(true);
     try {
       // Configure the telemetry server on the backend
-      await apiRequest({
-        method: 'POST',
-        url: '/api/telemetry-config',
-        body: { baseUrl: serverAddress },
-        on401: 'throw'
-      });
+      await apiRequest('POST', '/api/telemetry-config', { baseUrl: serverAddress });
 
       toast({
         title: "Server Configured",

@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 ### Telemetry System
 - **Data Source**: Funbit ETS2 Telemetry Server (https://github.com/Funbit/ets2-telemetry-server)
 - **Connection**: HTTP API polling from configurable server address (default: http://localhost:25555)
-- **Fallback**: Demo data generation when ETS2 telemetry server is unavailable
+- **No Fallback**: Returns null when ETS2 telemetry server is unavailable (no demo data)
 - **Real-time Updates**: WebSocket streaming of telemetry data to connected clients
 - **Data Validation**: Zod schemas ensure type safety between client and server
 - **Configuration**: Dynamic server URL configuration through connection modal
@@ -66,7 +66,7 @@ Preferred communication style: Simple, everyday language.
 4. **Storage**: Processed data is stored in-memory storage system
 5. **Real-time Distribution**: WebSocket server broadcasts updates to connected clients every few seconds
 6. **Client Rendering**: React components receive and display telemetry data with real-time updates
-7. **Fallback Handling**: Demo data generation when ETS2 server is unavailable
+7. **Error Handling**: Returns null when ETS2 server is unavailable (no fallback data)
 
 ## External Dependencies
 
@@ -123,5 +123,6 @@ The application is designed to be easily deployable on various platforms with mi
 - **Dynamic Configuration**: Added ability to configure ETS2 telemetry server URL at runtime
 - **Connection Modal**: Enhanced UI for entering server addresses with URL validation
 - **API Endpoints**: Added `/api/telemetry-config` for getting/setting server configuration
-- **Error Handling**: Improved error feedback and fallback to demo data when server unavailable
+- **Error Handling**: Improved error feedback, no fallback data when server unavailable
+- **API Fix**: Fixed telemetry server configuration API call format
 - **Toast Notifications**: Added user feedback for connection success/failure

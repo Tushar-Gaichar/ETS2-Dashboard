@@ -107,13 +107,13 @@ export async function readTelemetryData(): Promise<TelemetryData | null> {
       }
     }
     
-    // Fallback to demo data if ETS2 server is not available
-    return generateDemoTelemetryData();
+    // Return null if ETS2 server is not available (no demo data fallback)
+    return null;
     
   } catch (error) {
     console.error('Error reading telemetry data:', error);
-    // Return demo data on error
-    return generateDemoTelemetryData();
+    // Return null on error (no demo data fallback)
+    return null;
   }
 }
 
