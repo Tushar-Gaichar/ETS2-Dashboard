@@ -18,7 +18,7 @@ export default function ConnectionModal({
   onConnect,
   isConnecting = false,
 }: ConnectionModalProps) {
-  const [serverAddress, setServerAddress] = useState("192.168.1.100");
+  const [serverAddress, setServerAddress] = useState("http://localhost:25555");
   const [error, setError] = useState("");
 
   const handleConnect = () => {
@@ -27,15 +27,34 @@ export default function ConnectionModal({
       return;
     }
 
-    // Basic IP validation
-    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-    if (!ipRegex.test(serverAddress.trim())) {
-      setError("Please enter a valid IP address");
+    // Validate URL format or add http:// if missing
+    let url = serverAddress.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      // Check if it's an IP address and add default port
+      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::\d+)?$/;
+      if (ipRegex.test(url)) {
+        // Add port 25555 if not specified
+        if (!url.includes(':')) {
+          url = `http://${url}:25555`;
+        } else {
+          url = `http://${url}`;
+        }
+      } else {
+        setError("Please enter a valid URL or IP address");
+        return;
+      }
+    }
+
+    // Validate final URL
+    try {
+      new URL(url);
+    } catch {
+      setError("Please enter a valid URL or IP address");
       return;
     }
 
     setError("");
-    onConnect(serverAddress.trim());
+    onConnect(url);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -56,7 +75,7 @@ export default function ConnectionModal({
         
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Enter your PC's IP address to connect to the ETS2 telemetry server
+            Enter the URL or IP address of your PC running the Funbit ETS2 telemetry server (default port: 25555)
           </p>
           
           <div className="space-y-2">
@@ -64,7 +83,7 @@ export default function ConnectionModal({
             <Input
               id="server-address"
               type="text"
-              placeholder="192.168.1.100"
+              placeholder="http://192.168.1.100:25555 or http://localhost:25555"
               value={serverAddress}
               onChange={(e) => setServerAddress(e.target.value)}
               onKeyPress={handleKeyPress}

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Truck, Wifi, WifiOff } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import ConnectionModal from "@/components/connection-modal";
 import TelemetryGauge from "@/components/telemetry-gauge";
 import TruckInfo from "@/components/truck-info";
@@ -13,6 +15,7 @@ import { Button } from "@/components/ui/button";
 export default function Dashboard() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const { toast } = useToast();
   const { 
     isConnected, 
     telemetryData, 
@@ -24,15 +27,32 @@ export default function Dashboard() {
   const handleConnect = async (serverAddress: string) => {
     setIsConnecting(true);
     try {
-      connect(serverAddress);
-      // Give it a moment to establish connection
-      setTimeout(() => {
-        setIsConnecting(false);
-        setShowConnectionModal(false);
-      }, 2000);
+      // Configure the telemetry server on the backend
+      await apiRequest({
+        method: 'POST',
+        url: '/api/telemetry-config',
+        body: { baseUrl: serverAddress },
+        on401: 'throw'
+      });
+
+      toast({
+        title: "Server Configured",
+        description: `Connected to ETS2 telemetry server at ${serverAddress}`,
+      });
+
+      // Connect the WebSocket (this connects to our own WebSocket, not the ETS2 server)
+      connect();
+      
+      setIsConnecting(false);
+      setShowConnectionModal(false);
     } catch (error) {
       setIsConnecting(false);
       console.error('Connection failed:', error);
+      toast({
+        title: "Connection Failed",
+        description: "Could not connect to the ETS2 telemetry server. Please check the address and try again.",
+        variant: "destructive",
+      });
     }
   };
 

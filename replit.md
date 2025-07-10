@@ -36,10 +36,12 @@ Preferred communication style: Simple, everyday language.
 ## Key Components
 
 ### Telemetry System
-- **Data Source**: ETS2 telemetry data (supports Windows memory-mapped file access)
-- **Fallback**: Demo data generation for development and non-Windows environments
+- **Data Source**: Funbit ETS2 Telemetry Server (https://github.com/Funbit/ets2-telemetry-server)
+- **Connection**: HTTP API polling from configurable server address (default: http://localhost:25555)
+- **Fallback**: Demo data generation when ETS2 telemetry server is unavailable
 - **Real-time Updates**: WebSocket streaming of telemetry data to connected clients
 - **Data Validation**: Zod schemas ensure type safety between client and server
+- **Configuration**: Dynamic server URL configuration through connection modal
 
 ### Dashboard Interface
 - **Responsive Design**: Mobile-first approach with Tailwind CSS
@@ -58,11 +60,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Data Flow
 
-1. **Telemetry Collection**: Server reads ETS2 telemetry data from memory-mapped files (Windows) or generates demo data
-2. **Data Processing**: Raw telemetry data is validated against Zod schemas
-3. **Storage**: Processed data is stored in-memory and/or PostgreSQL database
-4. **Real-time Distribution**: WebSocket server broadcasts updates to connected clients
-5. **Client Rendering**: React components receive and display telemetry data with real-time updates
+1. **Server Configuration**: User configures ETS2 telemetry server URL through connection modal
+2. **Telemetry Collection**: Backend polls Funbit ETS2 telemetry server at `/api/ets2/telemetry` endpoint
+3. **Data Processing**: Raw telemetry JSON is transformed and validated against Zod schemas
+4. **Storage**: Processed data is stored in-memory storage system
+5. **Real-time Distribution**: WebSocket server broadcasts updates to connected clients every few seconds
+6. **Client Rendering**: React components receive and display telemetry data with real-time updates
+7. **Fallback Handling**: Demo data generation when ETS2 server is unavailable
 
 ## External Dependencies
 
@@ -104,3 +108,20 @@ Preferred communication style: Simple, everyday language.
 - **Connection**: Serverless PostgreSQL connection via Neon Database
 
 The application is designed to be easily deployable on various platforms with minimal configuration, requiring only a PostgreSQL database connection string and appropriate environment variables.
+
+## Recent Changes (January 2025)
+
+### Funbit ETS2 Telemetry Server Integration
+- **Updated Schema**: Completely restructured telemetry data schema to match Funbit ETS2 server format
+- **Added Fields**: New telemetry properties including truck ID, cruise control, odometer, adblue system, air pressure
+- **Enhanced Data Types**: Added placement objects for 3D coordinates, vector objects for movement data
+- **Date Handling**: Changed from timestamps to ISO 8601 date strings for game time and navigation
+- **Trailer Support**: Added comprehensive trailer attachment and cargo information
+- **Job System**: Updated job schema to match ETS2 market system (external contracts, freight market, quick jobs)
+
+### Connection Management
+- **Dynamic Configuration**: Added ability to configure ETS2 telemetry server URL at runtime
+- **Connection Modal**: Enhanced UI for entering server addresses with URL validation
+- **API Endpoints**: Added `/api/telemetry-config` for getting/setting server configuration
+- **Error Handling**: Improved error feedback and fallback to demo data when server unavailable
+- **Toast Notifications**: Added user feedback for connection success/failure

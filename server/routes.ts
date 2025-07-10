@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { readTelemetryData } from "./services/telemetry";
+import { readTelemetryData, updateTelemetryServerUrl, getTelemetryServerConfig } from "./services/telemetry";
 import { telemetryDataSchema, controlCommandSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -25,6 +25,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(status);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch connection status" });
+    }
+  });
+
+  // Get telemetry server configuration
+  app.get("/api/telemetry-config", (req, res) => {
+    try {
+      const config = getTelemetryServerConfig();
+      res.json(config);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get telemetry configuration" });
+    }
+  });
+
+  // Update telemetry server configuration
+  app.post("/api/telemetry-config", (req, res) => {
+    try {
+      const { baseUrl } = req.body;
+      
+      if (!baseUrl || typeof baseUrl !== 'string') {
+        return res.status(400).json({ message: "Base URL is required" });
+      }
+
+      // Validate URL format
+      try {
+        new URL(baseUrl);
+      } catch {
+        return res.status(400).json({ message: "Invalid URL format" });
+      }
+
+      updateTelemetryServerUrl(baseUrl);
+      
+      const config = getTelemetryServerConfig();
+      res.json({ message: "Telemetry server configuration updated", config });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update telemetry configuration" });
     }
   });
 

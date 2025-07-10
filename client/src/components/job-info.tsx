@@ -36,8 +36,8 @@ export default function JobInfo({ telemetryData }: JobInfoProps) {
       </h3>
       <div className="space-y-3">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Cargo:</span>
-          <span className="font-semibold">{telemetryData.job.cargo}</span>
+          <span className="text-muted-foreground">Market:</span>
+          <span className="font-semibold">{telemetryData.job.market.replace('_', ' ').toUpperCase()}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">From:</span>
@@ -48,12 +48,12 @@ export default function JobInfo({ telemetryData }: JobInfoProps) {
           <span className="font-semibold">{telemetryData.job.destinationCity}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Distance:</span>
-          <span className="font-semibold">{telemetryData.job.plannedDistanceKm} km</span>
+          <span className="text-muted-foreground">Source Company:</span>
+          <span className="font-semibold">{telemetryData.job.sourceCompany}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Cargo Mass:</span>
-          <span className="font-semibold">{telemetryData.job.cargoMass / 1000}t</span>
+          <span className="text-muted-foreground">Destination Company:</span>
+          <span className="font-semibold">{telemetryData.job.destinationCompany}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Income:</span>

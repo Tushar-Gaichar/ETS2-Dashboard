@@ -48,8 +48,8 @@ export default function TruckInfo({ telemetryData }: TruckInfoProps) {
           <div className="font-semibold">{telemetryData.truck.fuelCapacity}L</div>
         </div>
         <div>
-          <div className="text-sm text-muted-foreground">Gear Range</div>
-          <div className="font-semibold">{telemetryData.truck.gearRange}</div>
+          <div className="text-sm text-muted-foreground">Forward Gears</div>
+          <div className="font-semibold">{telemetryData.truck.forwardGears}</div>
         </div>
       </div>
     </div>

@@ -20,10 +20,10 @@ export default function NavigationInfo({ telemetryData }: NavigationInfoProps) {
     );
   }
 
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDistance = (meters: number) => {
@@ -42,7 +42,7 @@ export default function NavigationInfo({ telemetryData }: NavigationInfoProps) {
       <div className="space-y-3">
         <div className="flex justify-between">
           <span className="text-muted-foreground">ETA:</span>
-          <span className="font-semibold">{formatTime(telemetryData.navigation.estimatedTime / 1000)}</span>
+          <span className="font-semibold">{formatTime(telemetryData.navigation.estimatedTime)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Distance:</span>
