@@ -12,7 +12,13 @@ let connectionCheckInterval: NodeJS.Timeout | null = null;
 // Function to update the telemetry server URL
 export function updateTelemetryServerUrl(baseUrl: string): void {
   const cleanUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
-  ETS2_TELEMETRY_URL = `${cleanUrl}/api/ets2/telemetry`;
+  
+  // Check if the URL already contains the API endpoint
+  if (cleanUrl.includes('/api/ets2/telemetry')) {
+    ETS2_TELEMETRY_URL = cleanUrl;
+  } else {
+    ETS2_TELEMETRY_URL = `${cleanUrl}/api/ets2/telemetry`;
+  }
   
   console.log(`Updated ETS2 telemetry server URL to: ${ETS2_TELEMETRY_URL}`);
   
