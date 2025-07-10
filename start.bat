@@ -16,4 +16,6 @@ echo Starting the dashboard...
 echo Open your browser to: http://localhost:5000
 echo For mobile access use: http://YOUR-PC-IP:5000
 echo.
-npm run dev
+echo Starting with Windows compatibility...
+set NODE_ENV=development
+npx tsx server/index.ts
