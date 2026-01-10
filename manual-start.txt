@@ -1,0 +1,47 @@
+MANUAL STARTUP INSTRUCTIONS
+==========================
+
+If the batch files don't work, follow these manual steps:
+
+1. Open Command Prompt or PowerShell
+   - Press Windows key + R
+   - Type "cmd" and press Enter
+   - Or type "powershell" and press Enter
+
+2. Navigate to your project folder
+   - Type: cd "C:\path\to\your\ETS2-Dashboard"
+   - Replace the path with your actual folder location
+
+3. Check if Node.js is installed
+   - Type: node --version
+   - You should see something like "v18.17.0" or similar
+   - If not, install from https://nodejs.org
+
+4. Install dependencies
+   - Type: npm install
+   - Wait for it to complete
+
+5. Start the server
+   - Type: npx tsx server/index.ts
+   - Wait for "serving on port 5000"
+
+6. Open your browser
+   - Go to: http://localhost:5000
+
+TROUBLESHOOTING
+===============
+
+Problem: "node is not recognized"
+Solution: Install Node.js from https://nodejs.org
+
+Problem: "npm is not recognized" 
+Solution: Reinstall Node.js (npm comes with it)
+
+Problem: "package.json not found"
+Solution: Make sure you're in the correct folder
+
+Problem: "tsx not found"
+Solution: Run "npm install" first
+
+Problem: "Port already in use"
+Solution: Close other programs using port 5000
