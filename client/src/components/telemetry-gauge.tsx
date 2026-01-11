@@ -7,6 +7,8 @@ interface TelemetryGaugeProps {
   label: string;
   color?: string;
   className?: string;
+  // Optional size for the gauge circle
+  size?: "sm" | "md" | "lg" | "xl";
 }
 
 export default function TelemetryGauge({
@@ -16,13 +18,23 @@ export default function TelemetryGauge({
   label,
   color = "hsl(207, 90%, 54%)",
   className,
+  size = "md",
 }: TelemetryGaugeProps) {
   const percentage = Math.min((value / maxValue) * 100, 100);
   const strokeDasharray = `${percentage}, 100`;
 
+  const sizeClass =
+    size === "sm"
+      ? "w-20 h-20"
+      : size === "lg"
+      ? "w-32 h-32 md:w-40 md:h-40"
+      : size === "xl"
+      ? "w-40 h-40 md:w-56 md:h-56 lg:w-64 lg:h-64"
+      : "w-24 h-24"; // md (default)
+
   return (
     <div className={cn("bg-surface rounded-lg p-4 text-center", className)}>
-      <div className="relative w-24 h-24 mx-auto mb-2">
+      <div className={cn("relative mx-auto mb-2", sizeClass)}>
         <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
           <circle
             cx="18"

@@ -12,7 +12,6 @@ import NavigationInfo from "@/components/navigation-info";
 import BottomNavigation from "@/components/bottom-navigation";
 import { Button } from "@/components/ui/button";
 import ResizablePanels from "@/components/resizable-panels";
-import DashboardLayout from "@/components/dashboard-layout";
 import UserProfile from "@/components/user-profile";
 
 export default function Dashboard() {
@@ -142,6 +141,8 @@ export default function Dashboard() {
               unit="km/h"
               label="Speed"
               color="hsl(207, 90%, 54%)"
+              size="xl"
+              className="min-h-[300px] md:min-h-[360px] flex flex-col justify-center"
             />
             <div>
               <TelemetryGauge
@@ -169,11 +170,6 @@ export default function Dashboard() {
               <div className="text-sm text-muted-foreground">Gear</div>
             </div>
           </ResizablePanels>
-        </div>
-
-        {/* Customizable Dashboard Layout */}
-        <div className="mb-6">
-          <DashboardLayout />
         </div>
 
         {/* Truck Information */}
