@@ -10,6 +10,8 @@ export interface IStorage {
   getUser(id: number): Promise<any>;
   getUserByUsername(username: string): Promise<any>;
   createUser(user: any): Promise<any>;
+  listUsers(): Promise<any[]>;
+  deleteUser(id: number): Promise<void>;
   
   // Telemetry methods
   getLatestTelemetry(): Promise<TelemetryData | null>;
