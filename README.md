@@ -22,10 +22,11 @@ npm install
 **For Windows users, use one of these methods:**
 
 **Method 1 (Recommended): Double-click start.bat**
-- Just double-click the `start.bat` file in your project folder
+- Just double-click the `start-simple.bat` file in your project folder
 
 **Method 2: Manual commands in VS Code terminal**
 ```cmd
+set ETS2_USE_SENDKEYS=1
 set NODE_ENV=development
 npx tsx server/index.ts
 ```
