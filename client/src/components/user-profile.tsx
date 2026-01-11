@@ -127,7 +127,7 @@ export default function UserProfile() {
       {/* Always-visible compact switch control */}
       {users.length > 0 && (
         <div className="flex items-center">
-          <Button size="sm" variant="outline" className="mr-2" onClick={() => setShowSwitcher(!showSwitcher)}>
+          <Button size="sm" variant="outline" className="mr-2 bg-[#2094f3ff] text-white hover:bg-[#1b82d8] border-transparent" onClick={() => setShowSwitcher(!showSwitcher)}>
             Switch
           </Button>
           {showSwitcher && (

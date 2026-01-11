@@ -131,7 +131,7 @@ export default function Dashboard() {
         {/* Telemetry Gauges */}
         <div className="mb-6">
           <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button size="sm" variant={editMode ? 'secondary' : 'outline'} onClick={() => setEditMode(v => !v)}>
+            <Button size="sm" variant={editMode ? 'secondary' : 'outline'} className="bg-[#2094f3ff] text-white hover:bg-[#1b82d8]" onClick={() => setEditMode(v => !v)}>
               {editMode ? 'Exit Edit' : 'Page Edit'}
             </Button>
           </div>

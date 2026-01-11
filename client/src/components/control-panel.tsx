@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,6 +34,32 @@ export default function ControlPanel({
   isConnected 
 }: ControlPanelProps) {
   const [feedbackMessage, setFeedbackMessage] = useState<string>("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUploadControls = async (file: File | null) => {
+    if (!file) return;
+    try {
+      setUploading(true);
+      const text = await file.text();
+      const res = await fetch('/api/controls-overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFeedbackMessage(`Loaded keybinds (${data.mappings}) from controls.sii`);
+      } else {
+        setFeedbackMessage(data?.message || 'Failed to load controls.sii');
+      }
+    } catch {
+      setFeedbackMessage('Failed to load controls.sii');
+    } finally {
+      setUploading(false);
+      setTimeout(() => setFeedbackMessage(""), 2500);
+    }
+  };
 
   const handleCommand = (command: ControlCommand['command'], value?: boolean) => {
     if (!isConnected) {
@@ -61,6 +87,23 @@ export default function ControlPanel({
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success' : 'bg-destructive'}`}></div>
             <span className="text-sm">{isConnected ? 'Connected' : 'Disconnected'}</span>
+            <input
+              type="file"
+              accept=".sii,.txt,text/plain"
+              className="hidden"
+              id="controls-sii-input"
+              ref={fileInputRef}
+              onChange={(e) => handleUploadControls(e.target.files?.[0] || null)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-[#1b82d8] text-white hover:bg-[#166db8] border-transparent"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? 'Loading…' : 'Load controls.sii'}
+            </Button>
           </div>
         </div>
 

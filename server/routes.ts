@@ -4,6 +4,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { readTelemetryData, updateTelemetryServerUrl, getTelemetryServerConfig } from "./services/telemetry";
 import { telemetryDataSchema, controlCommandSchema } from "@shared/schema";
+import { getSendKeysForCommand, sendKeysToEts2 } from "./services/controls";
+import { loadControlsOverridesFromText } from "./services/controls";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // REST API endpoints
@@ -16,6 +18,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch telemetry data" });
+    }
+  });
+
+  // Upload controls.sii text to set keybinding overrides
+  app.post('/api/controls-overrides', (req, res) => {
+    try {
+      const { content } = req.body as { content?: string };
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ message: 'Missing controls.sii content' });
+      }
+      const count = loadControlsOverridesFromText(content);
+      res.json({ message: 'Overrides loaded', mappings: count });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to load overrides' });
     }
   });
 
@@ -227,59 +243,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Function to handle control commands
-  function handleControlCommand(commandData: any) {
+  async function handleControlCommand(commandData: any) {
     try {
       const command = controlCommandSchema.parse(commandData);
       console.log('Processing control command:', command);
-      
-      // In a real implementation, this would send the command to ETS2
-      // For now, we'll just log the command and send a confirmation
-      
-      // Map of ETS2 key bindings (these would be actual keyboard inputs in production)
-      const keyBindings: Record<string, string> = {
-        'toggle_engine': 'E',
-        'toggle_electric': 'Shift+E',
-        'toggle_lights_parking': 'F2',
-        'toggle_lights_beam_low': 'F3',
-        'toggle_lights_beam_high': 'F4',
-        'toggle_lights_beacon': 'F5',
-        'toggle_lights_aux_front': 'F6',
-        'toggle_lights_aux_roof': 'F7',
-        'horn_short': 'H',
-        'horn_long': 'Shift+H',
-        'toggle_cruise_control': 'C',
-        'toggle_retarder': 'R',
-        'toggle_differential_lock': 'D',
-        'toggle_lift_axle': 'L',
-        'toggle_trailer_lift_axle': 'Shift+L',
-        'shift_up': 'Up Arrow',
-        'shift_down': 'Down Arrow',
-        'toggle_range_splitter': 'S',
-      };
-      
-      const keyBinding = keyBindings[command.command];
-      if (keyBinding) {
-        console.log(`Would send keyboard input: ${keyBinding} for command: ${command.command}`);
-        
-        // In production, this would use a Windows API to send keystrokes to ETS2
-        // For development, we'll simulate the response
-        
-        // Broadcast command confirmation to all clients
-        const confirmationMessage = JSON.stringify({
-          type: 'command_confirmation',
-          data: {
-            command: command.command,
-            success: true,
-            message: `Command ${command.command} executed`
-          }
-        });
-        
-        connectedClients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(confirmationMessage);
-          }
-        });
+
+      const keys = getSendKeysForCommand(command.command);
+      if (!keys) {
+        throw new Error(`No key mapping for command: ${command.command}`);
       }
+
+      // Attempt to send keys to ETS2 (Windows only)
+      await sendKeysToEts2(keys);
+
+      // Broadcast command confirmation to all clients
+      const confirmationMessage = JSON.stringify({
+        type: 'command_confirmation',
+        data: {
+          command: command.command,
+          success: true,
+          message: `Command ${command.command} sent to ETS2`
+        }
+      });
+      connectedClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(confirmationMessage);
+        }
+      });
     } catch (error) {
       console.error('Error processing control command:', error);
       
@@ -287,7 +277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errorMessage = JSON.stringify({
         type: 'command_error',
         data: {
-          error: 'Invalid command format',
+          error: 'Command execution failed',
           message: error instanceof Error ? error.message : 'Unknown error'
         }
       });

@@ -52,7 +52,7 @@ export default function ResizablePanels({ children, editMode, userId }: Resizabl
 
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: `${colPct}% ${100 - colPct}%`, gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `${colPct}fr ${100 - colPct}fr`, gap: 16 }}>
         {children}
       </div>
 
