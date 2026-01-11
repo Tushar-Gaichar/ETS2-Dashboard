@@ -5,6 +5,7 @@ echo.
 
 echo Setting up environment...
 set NODE_ENV=development
+set ETS2_USE_SENDKEYS=1
 
 echo.
 echo Installing dependencies (if needed)...
