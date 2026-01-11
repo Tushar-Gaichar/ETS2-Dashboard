@@ -32,6 +32,7 @@ npx tsx server/index.ts
 
 **Method 3: PowerShell in VS Code**
 ```powershell
+$env:ETS2_USE_SENDKEYS = '1'
 $env:NODE_ENV="development"
 npx tsx server/index.ts
 ```
