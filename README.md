@@ -8,7 +8,6 @@
 ## Quick Setup
 
 ### 1. Download and Extract
-1. Download the project ZIP from Replit
 2. Extract to a folder (e.g., `C:\ETS2-Dashboard`)
 
 ### 2. Install Dependencies
