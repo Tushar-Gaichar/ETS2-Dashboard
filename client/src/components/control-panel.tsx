@@ -26,12 +26,14 @@ interface ControlPanelProps {
   telemetryData: TelemetryData | null;
   onSendCommand: (command: ControlCommand) => void;
   isConnected: boolean;
+  isStandalone?: boolean;
 }
 
 export default function ControlPanel({ 
   telemetryData, 
   onSendCommand, 
-  isConnected 
+  isConnected,
+  isStandalone,
 }: ControlPanelProps) {
   const [feedbackMessage, setFeedbackMessage] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -62,6 +64,11 @@ export default function ControlPanel({
   };
 
   const handleCommand = (command: ControlCommand['command'], value?: boolean) => {
+    if (isStandalone) {
+      setFeedbackMessage("Standalone mode – controls disabled");
+      setTimeout(() => setFeedbackMessage(""), 2000);
+      return;
+    }
     if (!isConnected) {
       setFeedbackMessage("Not connected to server");
       setTimeout(() => setFeedbackMessage(""), 2000);
@@ -87,23 +94,27 @@ export default function ControlPanel({
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success' : 'bg-destructive'}`}></div>
             <span className="text-sm">{isConnected ? 'Connected' : 'Disconnected'}</span>
-            <input
-              type="file"
-              accept=".sii,.txt,text/plain"
-              className="hidden"
-              id="controls-sii-input"
-              ref={fileInputRef}
-              onChange={(e) => handleUploadControls(e.target.files?.[0] || null)}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="bg-[#1b82d8] text-white hover:bg-[#166db8] border-transparent"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? 'Loading…' : 'Load controls.sii'}
-            </Button>
+            {!isStandalone && (
+              <>
+                <input
+                  type="file"
+                  accept=".sii,.txt,text/plain"
+                  className="hidden"
+                  id="controls-sii-input"
+                  ref={fileInputRef}
+                  onChange={(e) => handleUploadControls(e.target.files?.[0] || null)}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-[#1b82d8] text-white hover:bg-[#166db8] border-transparent"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {uploading ? 'Loading…' : 'Load controls.sii'}
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

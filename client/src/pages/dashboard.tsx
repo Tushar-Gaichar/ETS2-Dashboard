@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
+  const IS_STANDALONE = import.meta.env.VITE_STANDALONE === "true";
   const { 
     isConnected, 
     telemetryData, 
@@ -30,11 +31,15 @@ export default function Dashboard() {
 
   // resolve current user for persisting page-level settings
   useEffect(() => {
+    if (IS_STANDALONE) {
+      console.log("Standalone mode: skipping user fetch");
+      return;
+    }
     fetch('/api/user').then(r => r.json()).then(d => { if (d?.userId) setUserId(d.userId); }).catch(() => {});
     const handler = (e: any) => { setUserId(e?.detail?.userId ?? null); };
     window.addEventListener('ets2:user-changed', handler as EventListener);
     return () => window.removeEventListener('ets2:user-changed', handler as EventListener);
-  }, []);
+  }, [IS_STANDALONE]);
 
   const handleConnect = async (serverAddress: string) => {
     setIsConnecting(true);
@@ -75,46 +80,53 @@ export default function Dashboard() {
           <div className="flex items-center space-x-3">
             <Truck className="text-primary h-6 w-6" />
             <h1 className="text-lg font-semibold">ETS2 Dashboard</h1>
+            {IS_STANDALONE && (
+              <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
+                Standalone mode – backend offline
+              </span>
+            )}
           </div>
           
           {/* Connection Status */}
           <div className="flex items-center space-x-4">
             <UserProfile />
             <div className="h-6 border-l border-surface-light" />
-            <div className="flex items-center space-x-2">
-            {isConnected ? (
+            {!IS_STANDALONE && (
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                <span className="text-sm text-success">Connected</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={handleDisconnect}
-                >
-                  <WifiOff className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-destructive rounded-full"></div>
-                <span className="text-sm text-destructive">Disconnected</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setShowConnectionModal(true)}
-                >
-                  <Wifi className="h-4 w-4" />
-                </Button>
+                {isConnected ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                    <span className="text-sm text-success">Connected</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={handleDisconnect}
+                    >
+                      <WifiOff className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-destructive rounded-full"></div>
+                    <span className="text-sm text-destructive">Disconnected</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setShowConnectionModal(true)}
+                    >
+                      <Wifi className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
-      </div>
       </header>
 
       <main className="p-4 pb-20">
         {/* Connection prompt when disconnected */}
-        {!isConnected && (
+        {!isConnected && !IS_STANDALONE && (
           <div className="bg-surface rounded-lg p-6 mb-6 text-center">
             <Wifi className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h2 className="text-lg font-semibold mb-2">Connect to ETS2 Server</h2>
@@ -189,12 +201,14 @@ export default function Dashboard() {
       <BottomNavigation />
 
       {/* Connection Modal */}
-      <ConnectionModal
-        isOpen={showConnectionModal}
-        onClose={() => setShowConnectionModal(false)}
-        onConnect={handleConnect}
-        isConnecting={isConnecting}
-      />
+      {!IS_STANDALONE && (
+        <ConnectionModal
+          isOpen={showConnectionModal}
+          onClose={() => setShowConnectionModal(false)}
+          onConnect={handleConnect}
+          isConnecting={isConnecting}
+        />
+      )}
     </div>
   );
 }
