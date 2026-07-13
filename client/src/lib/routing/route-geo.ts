@@ -26,3 +26,26 @@ export function routeGeoToGame(lng: number, lat: number): [number, number] {
   const z = projY / (ETS2_MAP_FACTOR[0] * DEG_LEN) + ETS2_MAP_OFFSET[1];
   return [x, z];
 }
+
+/**
+ * ETS2 game (x, z) meters -> lng/lat, using TruckNav-Sim's own constants.
+ * Needed for cities.json, which stores raw game coordinates rather than
+ * lng/lat (companies.geojson, by contrast, is already lng/lat).
+ */
+export function routeGameToGeo(x: number, z: number): [number, number] {
+  let shiftedX = x - ETS2_MAP_OFFSET[0];
+  let shiftedZ = z - ETS2_MAP_OFFSET[1];
+
+  // SCS scales the UK/Calais DLC area differently — same quirk as our main
+  // coordinates.ts carries over from TruckNav-Sim's original implementation.
+  if (x < -31100 && z < -5500) {
+    const ukScale = 0.75;
+    shiftedX = (shiftedX + -31100 / 2) * ukScale;
+    shiftedZ = (shiftedZ + -5500 / 2) * ukScale;
+  }
+
+  const projectedX = shiftedX * ETS2_MAP_FACTOR[1] * DEG_LEN;
+  const projectedY = shiftedZ * ETS2_MAP_FACTOR[0] * DEG_LEN;
+  const [lng, lat] = ets2Converter.inverse([projectedX, projectedY]);
+  return [lng, lat];
+}

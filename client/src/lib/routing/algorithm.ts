@@ -51,18 +51,18 @@ let globalNextEdgeId = 0;
 function ensureCoordCache(nodeCoords: Map<number, [number, number]>) {
   if (cache_flatCoords && cache_flatCoords.length > 0) return;
   cache_flatCoords = new Float64Array(900_000 * 2);
-  for (const [id, [lng, lat]] of nodeCoords) {
-    if (id * 2 + 1 < cache_flatCoords.length) {
-      cache_flatCoords[id * 2] = lng;
-      cache_flatCoords[id * 2 + 1] = lat;
+  nodeCoords.forEach(([lng, lat], id) => {
+    if (id * 2 + 1 < cache_flatCoords!.length) {
+      cache_flatCoords![id * 2] = lng;
+      cache_flatCoords![id * 2 + 1] = lat;
     }
-  }
+  });
 }
 
 function ensureEdgesMapped(adjacency: Map<number, GraphEdge[]>) {
   if (isEdgesMapped) return;
   globalNextEdgeId = 0;
-  for (const [u, edges] of adjacency.entries()) {
+  adjacency.forEach((edges, u) => {
     for (const edge of edges) {
       const eId = globalNextEdgeId++;
       edge.edgeId = eId;
@@ -70,7 +70,7 @@ function ensureEdgesMapped(adjacency: Map<number, GraphEdge[]>) {
       edge_source[eId] = u;
       edge_hIn[eId] = edge.hIn || 0;
     }
-  }
+  });
   isEdgesMapped = true;
 }
 
@@ -152,7 +152,7 @@ export function calculateRoute(
     [destLng, destLat] = targetLocation;
     foundDest = true;
   } else {
-    const firstEndId = [...possibleEnds][0];
+    const firstEndId = Array.from(possibleEnds)[0];
     if (firstEndId !== undefined) {
       destLng = flatCoords[firstEndId * 2]!;
       destLat = flatCoords[firstEndId * 2 + 1]!;
@@ -210,7 +210,10 @@ export function calculateRoute(
       const neighborEdgeId = edge.edgeId!;
 
       const dlcId = edge.requiredDlc || 0;
-      if (dlcId !== 0 && !ownedDlcs.includes(dlcId)) continue;
+      // Empty ownedDlcs means "assume everything is owned" (no DLC-ownership
+      // tracking in this project) rather than "exclude every DLC road" —
+      // pass a real list here later if you want actual per-DLC filtering.
+      if (dlcId !== 0 && ownedDlcs.length > 0 && !ownedDlcs.includes(dlcId)) continue;
       if (cache_visited[neighborEdgeId] === 1) continue;
 
       const neighborNodeId = edge.to;
@@ -261,8 +264,8 @@ export function calculateRoute(
 
   if (foundEndEdgeId === null) return null;
 
-  const path: [number, number][] = [];
-  const nodeSequence: number[] = [];
+  let path: [number, number][] = [];
+  let nodeSequence: number[] = [];
   let currEdgeId: number = foundEndEdgeId;
 
   while (currEdgeId !== START_EDGE_ID && currEdgeId !== -1) {
@@ -274,6 +277,34 @@ export function calculateRoute(
   }
   path.unshift([flatCoords[start * 2]!, flatCoords[start * 2 + 1]!]);
   nodeSequence.unshift(start);
+
+  // Collapse any loop-back where the same node appears more than once —
+  // e.g. circling a roundabout twice. Each edge is tracked as "visited"
+  // independently of which node it leads to (deliberately, for heading-aware
+  // routing), so the search can legitimately revisit a node via a different
+  // edge if that scored cheaper — but a real truck never needs to physically
+  // loop back through the same intersection, so any such loop is pointless
+  // detour, not a required maneuver. Keep only the first visit to each node.
+  const firstIndexOfNode = new Map<number, number>();
+  for (let i = 0; i < nodeSequence.length; i++) {
+    const nodeId = nodeSequence[i]!;
+    if (!firstIndexOfNode.has(nodeId)) firstIndexOfNode.set(nodeId, i);
+  }
+  const hasLoop = firstIndexOfNode.size < nodeSequence.length;
+  if (hasLoop) {
+    const cleanedSequence: number[] = [];
+    const cleanedPath: [number, number][] = [];
+    let i = 0;
+    while (i < nodeSequence.length) {
+      const nodeId = nodeSequence[i]!;
+      cleanedSequence.push(nodeId);
+      cleanedPath.push(path[i]!);
+      const lastOccurrence = nodeSequence.lastIndexOf(nodeId);
+      i = lastOccurrence + 1; // jump straight past any loop back to this same node
+    }
+    nodeSequence = cleanedSequence;
+    path = cleanedPath;
+  }
 
   return { path, nodeSequence, endId: nodeSequence[nodeSequence.length - 1]! };
 }

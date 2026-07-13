@@ -27,6 +27,7 @@ export interface RoutingGraph {
   nodeCoords: Map<number, [number, number]>;
   graphBuffer: ArrayBuffer;
   geometryBuffer: ArrayBuffer;
+  geometryF32: Float32Array;
   /** Nearest node IDs to a given [lng, lat], closest first. */
   getClosestNodes: (target: [number, number], limit?: number, radiusDeg?: number) => number[];
 }
@@ -97,7 +98,7 @@ export async function loadRoutingGraph(baseUrl = "/routing-data/roadnetwork"): P
 
   const nodeCoords = new Map<number, [number, number]>();
   const items: NodeIndexItem[] = [];
-  for (const node of uniqueNodes.values()) {
+  uniqueNodes.forEach((node) => {
     nodeCoords.set(node.id, [node.lng, node.lat]);
     items.push({
       minX: node.lng,
@@ -107,7 +108,7 @@ export async function loadRoutingGraph(baseUrl = "/routing-data/roadnetwork"): P
       id: node.id,
       coord: [node.lng, node.lat],
     });
-  }
+  });
 
   const nodeTree = new RBush<NodeIndexItem>();
   nodeTree.load(items);
@@ -127,5 +128,5 @@ export async function loadRoutingGraph(baseUrl = "/routing-data/roadnetwork"): P
       .map((c) => c.id);
   }
 
-  return { adjacency, nodeCoords, graphBuffer, geometryBuffer, getClosestNodes };
+  return { adjacency, nodeCoords, graphBuffer, geometryBuffer, geometryF32, getClosestNodes };
 }

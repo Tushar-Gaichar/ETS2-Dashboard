@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/maplibre-protocol"; // registers the pmtiles:// protocol — side-effect import, keep it above other maplibre usage
-import { LocateFixed, Gauge } from "lucide-react";
+import { LocateFixed } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { gameToLngLat, headingToDegrees } from "@/lib/coordinates";
 import { createTruckMarkerElement } from "@/components/truck-marker";
@@ -10,8 +10,11 @@ import { loadPoiIcons, poiIconImageId } from "@/lib/poi-icons";
 import { registerSpriteIconLoader } from "@/lib/sprite-icons";
 import { snapToNearestRoad } from "@/lib/road-snap";
 import { createSmoothedMarkerMover } from "@/lib/smoothed-marker";
+import { createRoutingClient, type RouteResult } from "@/lib/routing/routing-client";
+import { resolveJobDestination } from "@/lib/routing/city-lookup";
 import BottomNavigation from "@/components/bottom-navigation";
 import { Button } from "@/components/ui/button";
+import { Navigation, X } from "lucide-react";
 
 // Your real ETS2 map data, served as a static file. Place the .pmtiles file
 // at client/public/tiles/ets2.pmtiles — Vite serves client/public/ as-is in
@@ -55,6 +58,23 @@ const style: maplibregl.StyleSpecification = {
       minzoom: 4,
       maxzoom: 16,
     },
+    route: {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] }, // populated live via map.getSource("route").setData(...)
+    },
+    // EXPERIMENTAL — TruckNav-Sim's own road geometry, being tried as the
+    // base road-line layer since it's generated from the exact same
+    // pipeline run as the routing graph (graph.bin/geometry.bin), so it
+    // should line up with computed routes better than our own separately-
+    // generated ets2.pmtiles does. Real tradeoff: zero properties (no
+    // roadType, no sprite), capped at zoom 9 (vs our 16). See the "roads"
+    // layer below — easy to revert by pointing it back at "ets2"/"ets2".
+    trucknavRoads: {
+      type: "vector",
+      url: "pmtiles:///tiles/trucknav-roads.pmtiles",
+      minzoom: 5,
+      maxzoom: 9,
+    },
   },
   layers: [
     { id: "background", type: "background", paint: { "background-color": "#1c1c1e" } },
@@ -79,33 +99,31 @@ const style: maplibregl.StyleSpecification = {
       minzoom: 12, // full building-level detail only makes sense zoomed in
       paint: {
         "fill-extrusion-color": "#3a3a3c",
-        "fill-extrusion-height": ["max", 0, ["to-number", ["get", "height"], 0]],
+        // Multiplied for visual impact — real map apps (Apple/Google Maps
+        // included) exaggerate building height rather than rendering true
+        // scale, since true-scale buildings read as flat at typical camera
+        // pitch. Tune the multiplier further to taste.
+        "fill-extrusion-height": ["*", ["max", 0, ["to-number", ["get", "height"], 0]], 2.5],
         "fill-extrusion-opacity": 0.9,
       },
     },
     {
+      // EXPERIMENTAL — see the trucknavRoads source comment above. To
+      // revert: change source/"source-layer" back to "ets2"/"ets2", restore
+      // the filter, and bring back the roadType-based color/width matches
+      // (git history / the previous version of this file has the exact
+      // code — this is a straight swap, nothing else depends on it changing).
       id: "roads",
       type: "line",
-      source: "ets2",
+      source: "trucknavRoads",
       "source-layer": "ets2",
-      filter: ["==", ["get", "type"], "road"],
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
-        // Freeways/divided roads a touch brighter and thicker than local
-        // roads, giving a rough Apple-Maps-style road hierarchy.
-        "line-color": [
-          "match",
-          ["get", "roadType"],
-          "freeway", "#7a7a80",
-          "divided", "#6a6a70",
-          "#5a5a5e", // local / train / fallback
-        ],
-        "line-width": [
-          "interpolate", ["linear"], ["zoom"],
-          6, ["match", ["get", "roadType"], "freeway", 1, 0.4],
-          12, ["match", ["get", "roadType"], "freeway", 3, "divided", 2, 1.2],
-          16, ["match", ["get", "roadType"], "freeway", 8, "divided", 5, 3],
-        ],
+        // No roadType property on this source, so no freeway/local
+        // hierarchy — flat width/color for everything until/unless we
+        // bring that styling back from our own data.
+        "line-color": "#6a6a70",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.8, 12, 2.5, 16, 6],
       },
     },
     {
@@ -136,6 +154,21 @@ const style: maplibregl.StyleSpecification = {
         // even after the icons themselves loaded correctly.
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
+      },
+    },
+    {
+      // Painted here (after roads, before labels/POIs) so it's clearly
+      // visible on top of the road network without covering place names or
+      // POI icons. Was mistakenly placed before "roads" originally, which
+      // let roads paint over parts of the route line.
+      id: "route-line",
+      type: "line",
+      source: "route",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": "#0a84ff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 2, 12, 4, 16, 7],
+        "line-opacity": 0.85,
       },
     },
     {
@@ -229,9 +262,17 @@ export default function MapPage() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const moverRef = useRef<ReturnType<typeof createSmoothedMarkerMover> | null>(null);
+  const routingRef = useRef<ReturnType<typeof createRoutingClient> | null>(null);
   const [followTruck, setFollowTruck] = useState(true);
+  const [clickToRouteEnabled, setClickToRouteEnabled] = useState(false);
+  const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
+  const [routing, setRouting] = useState(false);
+  const clickToRouteEnabledRef = useRef(clickToRouteEnabled);
+  clickToRouteEnabledRef.current = clickToRouteEnabled;
 
   const { telemetryData } = useWebSocket();
+  const telemetryDataRef = useRef(telemetryData);
+  telemetryDataRef.current = telemetryData;
 
   // Initialize the map once.
   useEffect(() => {
@@ -263,12 +304,52 @@ export default function MapPage() {
     markerRef.current = marker;
     moverRef.current = createSmoothedMarkerMover(marker);
 
+    const routing = createRoutingClient();
+    routingRef.current = routing;
+    routing.ready.catch((err) => console.error("Routing graph failed to load", err));
+
     // User panning manually should disengage auto-follow, like Apple Maps.
     map.on("dragstart", () => setFollowTruck(false));
+
+    map.on("click", async (e) => {
+      if (!clickToRouteEnabledRef.current) return;
+      const placement = telemetryDataRef.current?.truck?.placement;
+      if (!placement || !routingRef.current) return;
+
+      const [startLng, startLat] = gameToLngLat(placement.x, placement.z);
+      if (!Number.isFinite(startLng) || !Number.isFinite(startLat)) return;
+      const start = snapToNearestRoad(map, [startLng, startLat]);
+      const headingDeg = headingToDegrees(placement.heading);
+
+      setRouting(true);
+      try {
+        await routingRef.current.ready;
+        const result = await routingRef.current.findRoute(
+          start,
+          Number.isFinite(headingDeg) ? headingDeg : null,
+          [e.lngLat.lng, e.lngLat.lat],
+        );
+        setRouteResult(result);
+        const source = map.getSource("route") as maplibregl.GeoJSONSource | undefined;
+        source?.setData({
+          type: "FeatureCollection",
+          features: result
+            ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: result.path } }]
+            : [],
+        });
+      } catch (err) {
+        console.error("Routing failed", err);
+        setRouteResult(null);
+      } finally {
+        setRouting(false);
+      }
+    });
 
     return () => {
       moverRef.current?.stop();
       moverRef.current = null;
+      routingRef.current?.destroy();
+      routingRef.current = null;
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
@@ -307,6 +388,66 @@ export default function MapPage() {
     }
   }, [telemetryData, followTruck]);
 
+  // Auto-route to the active job's destination. Keyed on the destination
+  // identity (not telemetryData itself, which changes every tick) so this
+  // only re-runs when the job actually changes, not on every position update.
+  const jobDestinationKey = `${telemetryData?.job?.destinationCity ?? ""}|${telemetryData?.job?.destinationCompany ?? ""}`;
+  useEffect(() => {
+    const map = mapRef.current;
+    const routing = routingRef.current;
+    const destinationCity = telemetryData?.job?.destinationCity;
+    const destinationCompany = telemetryData?.job?.destinationCompany;
+    const placement = telemetryData?.truck?.placement;
+
+    if (!map || !routing || !placement || (!destinationCity && !destinationCompany)) return;
+
+    let cancelled = false;
+    (async () => {
+      const destination = await resolveJobDestination(
+        destinationCity,
+        destinationCompany,
+        telemetryData?.job?.destinationCityId,
+      );
+      if (!destination || cancelled) return;
+
+      const [startLng, startLat] = gameToLngLat(placement.x, placement.z);
+      if (!Number.isFinite(startLng) || !Number.isFinite(startLat)) return;
+      const start = snapToNearestRoad(map, [startLng, startLat]);
+      const headingDeg = headingToDegrees(placement.heading);
+
+      setRouting(true);
+      try {
+        await routing.ready;
+        const result = await routing.findRoute(start, Number.isFinite(headingDeg) ? headingDeg : null, destination);
+        if (cancelled) return;
+        setRouteResult(result);
+        const source = map.getSource("route") as maplibregl.GeoJSONSource | undefined;
+        source?.setData({
+          type: "FeatureCollection",
+          features: result
+            ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: result.path } }]
+            : [],
+        });
+      } catch (err) {
+        console.error("Job auto-routing failed", err);
+      } finally {
+        if (!cancelled) setRouting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobDestinationKey]);
+
+  function clearRoute() {
+    setRouteResult(null);
+    const map = mapRef.current;
+    const source = map?.getSource("route") as maplibregl.GeoJSONSource | undefined;
+    source?.setData({ type: "FeatureCollection", features: [] });
+  }
+
   const handleRecenter = () => {
     const map = mapRef.current;
     const placement = telemetryData?.truck?.placement;
@@ -319,7 +460,8 @@ export default function MapPage() {
   };
 
   const speed = Math.round(telemetryData?.truck?.speed ?? 0);
-  const connected = !!telemetryData?.game?.connected;
+  const speedLimit = Math.round(telemetryData?.navigation?.speedLimit ?? 0);
+  const speedLimitWarning = !!telemetryData?.navigation?.speedLimitWarning;
 
   return (
     <div className="ets2-map relative h-screen w-screen overflow-hidden bg-[#1c1c1e]">
@@ -345,42 +487,69 @@ export default function MapPage() {
         .ets2-map .maplibregl-ctrl-group button:hover {
           background-color: rgba(255, 255, 255, 0.08);
         }
+        @keyframes speed-warning-flash {
+          0%, 100% { background-color: hsl(var(--destructive)); }
+          50% { background-color: #1c1c1e; }
+        }
+        .speed-warning-flash {
+          animation: speed-warning-flash 1s ease-in-out infinite;
+        }
       `}</style>
 
       <div ref={mapContainerRef} className="absolute inset-0" />
 
-      {/* Recenter button + info card, stacked in one flex column so the
-          button can never overlap the card regardless of how tall the card
-          renders (the old version guessed a fixed pixel offset for the
-          button, which broke as soon as the card's real height differed). */}
+      {/* Buttons, speed badge, and route bar all stacked in one flex column
+          (in that order) so none of them can overlap regardless of how tall
+          any of them render — this replaced two separately absolute-
+          positioned elements guessing pixel offsets at each other, which is
+          exactly what caused the route bar to collide with the buttons. */}
       <div className="absolute bottom-16 left-0 right-0 z-10 flex flex-col gap-3 px-3 pb-3">
-        <Button
-          size="icon"
-          onClick={handleRecenter}
-          className={`h-11 w-11 self-end rounded-full border border-white/10 shadow-lg backdrop-blur-md ${
-            followTruck ? "bg-primary text-primary-foreground" : "bg-black/60 text-white hover:bg-black/70"
+        <div className="flex justify-end gap-2 self-end">
+          <Button
+            size="icon"
+            onClick={() => setClickToRouteEnabled((v) => !v)}
+            title="Tap the map to route there"
+            className={`h-11 w-11 rounded-full border border-white/10 shadow-lg backdrop-blur-md ${
+              clickToRouteEnabled ? "bg-primary text-primary-foreground" : "bg-black/60 text-white hover:bg-black/70"
+            }`}
+          >
+            <Navigation className={`h-5 w-5 ${routing ? "animate-pulse" : ""}`} />
+          </Button>
+          <Button
+            size="icon"
+            onClick={handleRecenter}
+            className={`h-11 w-11 rounded-full border border-white/10 shadow-lg backdrop-blur-md ${
+              followTruck ? "bg-primary text-primary-foreground" : "bg-black/60 text-white hover:bg-black/70"
+            }`}
+          >
+            <LocateFixed className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <div
+          className={`flex h-20 w-20 flex-col items-center justify-center gap-0.5 self-start rounded-2xl border shadow-2xl backdrop-blur-md transition-colors ${
+            speedLimitWarning ? "speed-warning-flash border-white/20" : "border-white/10 bg-black/60"
           }`}
         >
-          <LocateFixed className="h-5 w-5" />
-        </Button>
-
-        <div className="rounded-3xl border border-white/10 bg-black/60 p-5 shadow-2xl backdrop-blur-md">
-          <div className="mb-1 flex items-center gap-2">
-            <span
-              className={`h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-destructive"}`}
-            />
-            <span className="text-xs font-medium text-neutral-400">
-              {connected ? "Live telemetry" : "Not connected"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-semibold text-white">{speed} km/h</div>
-              <div className="text-sm text-neutral-400">Current speed</div>
-            </div>
-            <Gauge className="h-8 w-8 text-neutral-600" />
-          </div>
+          <span className="text-sm font-medium leading-none text-white/70">{speed}</span>
+          {speedLimit > 0 && <span className="text-3xl font-bold leading-none text-white">{speedLimit}</span>}
         </div>
+
+        {routeResult && (
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/60 px-4 py-2.5 shadow-2xl backdrop-blur-md">
+            <div className="flex items-baseline gap-3">
+              <span className="text-lg font-semibold text-white">{routeResult.distanceKm.toFixed(0)} km</span>
+              <span className="text-sm text-neutral-400">
+                ~{routeResult.etaHours >= 1
+                  ? `${Math.floor(routeResult.etaHours)}h ${Math.round((routeResult.etaHours % 1) * 60)}m`
+                  : `${Math.round(routeResult.etaHours * 60)}m`}
+              </span>
+            </div>
+            <Button size="icon" variant="ghost" onClick={clearRoute} className="h-7 w-7 text-neutral-400 hover:text-white">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <BottomNavigation />
