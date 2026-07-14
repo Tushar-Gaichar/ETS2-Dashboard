@@ -11,30 +11,18 @@ import StatusIndicators from "@/components/status-indicators";
 import NavigationInfo from "@/components/navigation-info";
 import BottomNavigation from "@/components/bottom-navigation";
 import { Button } from "@/components/ui/button";
-import ResizablePanels from "@/components/resizable-panels";
-import UserProfile from "@/components/user-profile";
 
 export default function Dashboard() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
-  const { 
-    isConnected, 
-    telemetryData, 
-    connectionStatus, 
-    connect, 
-    disconnect 
+  const {
+    isConnected,
+    telemetryData,
+    connectionStatus,
+    connect,
+    disconnect,
   } = useWebSocket();
-  const [editMode, setEditMode] = useState(false);
-  const [userId, setUserId] = useState<number | null>(null);
-
-  // resolve current user for persisting page-level settings
-  useEffect(() => {
-    fetch('/api/user').then(r => r.json()).then(d => { if (d?.userId) setUserId(d.userId); }).catch(() => {});
-    const handler = (e: any) => { setUserId(e?.detail?.userId ?? null); };
-    window.addEventListener('ets2:user-changed', handler as EventListener);
-    return () => window.removeEventListener('ets2:user-changed', handler as EventListener);
-  }, []);
 
   const handleConnect = async (serverAddress: string) => {
     setIsConnecting(true);
@@ -79,8 +67,6 @@ export default function Dashboard() {
           
           {/* Connection Status */}
           <div className="flex items-center space-x-4">
-            <UserProfile />
-            <div className="h-6 border-l border-surface-light" />
             <div className="flex items-center space-x-2">
             {isConnected ? (
               <div className="flex items-center space-x-2">
@@ -129,12 +115,7 @@ export default function Dashboard() {
 
         {/* Telemetry Gauges */}
         <div className="mb-6">
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button size="sm" variant={editMode ? 'secondary' : 'outline'} className="bg-[#2094f3ff] text-white hover:bg-[#1b82d8]" onClick={() => setEditMode(v => !v)}>
-              {editMode ? 'Exit Edit' : 'Page Edit'}
-            </Button>
-          </div>
-          <ResizablePanels editMode={editMode} userId={userId}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TelemetryGauge
               value={telemetryData?.truck.speed || 0}
               maxValue={120}
@@ -169,7 +150,7 @@ export default function Dashboard() {
               </div>
               <div className="text-sm text-muted-foreground">Gear</div>
             </div>
-          </ResizablePanels>
+          </div>
         </div>
 
         {/* Truck Information */}
