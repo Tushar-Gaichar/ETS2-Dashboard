@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { readTelemetryData, updateTelemetryServerUrl, getTelemetryServerConfig } from "./services/telemetry";
 import { telemetryDataSchema, controlCommandSchema } from "@shared/schema";
-import { getSendKeysForCommand, sendKeysToEts2 } from "./services/controls";
+import { sendControlCommand } from "./services/controls";
 import { loadControlsOverridesFromText } from "./services/controls";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -248,13 +248,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const command = controlCommandSchema.parse(commandData);
       console.log('Processing control command:', command);
 
-      const keys = getSendKeysForCommand(command.command);
-      if (!keys) {
-        throw new Error(`No key mapping for command: ${command.command}`);
-      }
-
-      // Attempt to send keys to ETS2 (Windows only)
-      await sendKeysToEts2(keys);
+      // Dispatches to vJoy (default), SendInput, or SendKeys depending on
+      // ETS2_INPUT_METHOD - see server/services/controls.ts.
+      await sendControlCommand(command.command);
 
       // Broadcast command confirmation to all clients
       const confirmationMessage = JSON.stringify({
@@ -290,8 +286,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Function to tell clients the ETS2/Funbit telemetry feed itself is gone
+  // (game closed, Funbit server stopped, etc), distinct from our own WS
+  // connection. Without this, clients would silently keep showing whatever
+  // engine/lights state they last received, even after it stops being true.
+  function broadcastTelemetryUnavailable() {
+    const message = JSON.stringify({
+      type: 'connection_status',
+      data: { connected: false }
+    });
+    connectedClients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  }
+
   // Telemetry data polling and broadcasting
   let telemetryInterval: NodeJS.Timeout;
+  let wasEts2Connected = false;
   
   const startTelemetryPolling = () => {
     telemetryInterval = setInterval(async () => {
@@ -313,12 +326,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Broadcast to all connected clients
           broadcastTelemetryData(validatedData);
+          wasEts2Connected = true;
         } else {
           // No telemetry data available
           await storage.updateConnectionStatus({
             connected: false,
             lastUpdate: Date.now()
           });
+          // Only notify clients on the transition into "unavailable" so we
+          // don't spam a message every 100ms while ETS2 stays closed.
+          if (wasEts2Connected) {
+            broadcastTelemetryUnavailable();
+            wasEts2Connected = false;
+          }
         }
       } catch (error) {
         console.error('Error in telemetry polling:', error);
@@ -328,6 +348,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           connected: false,
           lastUpdate: Date.now()
         });
+        if (wasEts2Connected) {
+          broadcastTelemetryUnavailable();
+          wasEts2Connected = false;
+        }
       }
     }, 100); // Poll every 100ms for smooth real-time updates
   };

@@ -5,7 +5,10 @@ echo.
 
 echo Setting up environment...
 set NODE_ENV=development
-set ETS2_USE_SENDKEYS=1
+REM Controls default to vJoy (ETS2_INPUT_METHOD=vjoy) - see README's
+REM "Controls Setup" section for the one-time vJoy driver + button binding
+REM setup. Set ETS2_INPUT_METHOD=sendinput or =sendkeys here to fall back to
+REM keyboard injection instead, which is less reliable for this game.
 
 echo.
 echo Installing dependencies (if needed)...

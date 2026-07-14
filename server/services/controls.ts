@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { sendVjoyCommand } from './vjoy';
 
 const execFileAsync = promisify(execFile);
 
@@ -204,15 +205,19 @@ export async function sendKeysToEts2(sequence: KeySequence): Promise<void> {
 
   const seqLiteral = JSON.stringify(sequence);
   const windowTitle = process.env.ETS2_WINDOW_TITLE || 'Euro Truck Simulator 2';
+  // eurotrucks2.exe is the real process name for both the 32-bit and 64-bit
+  // Steam builds of ETS2, and matching by process is far more reliable than
+  // matching by window title text (which Steam's own windows/overlays can
+  // also contain, causing us to silently activate the wrong window).
+  const processName = process.env.ETS2_PROCESS_NAME || 'eurotrucks2';
 
   const ps = `
 $ErrorActionPreference = 'Stop'
-$wshell = New-Object -ComObject WScript.Shell
-$null = $wshell.AppActivate('${windowTitle.replace(/'/g, "''")}')
-Start-Sleep -Milliseconds 100
 
 $code = @"
 using System;
+using System.Text;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 public static class InputSender {
   [StructLayout(LayoutKind.Sequential)]
@@ -224,7 +229,6 @@ public static class InputSender {
   const uint INPUT_KEYBOARD = 1;
   const uint KEYEVENTF_KEYUP = 0x0002;
   const uint KEYEVENTF_SCANCODE = 0x0008;
-  const uint KEYEVENTF_UNICODE = 0x0004;
   [DllImport("user32.dll", SetLastError=true)]
   static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
   [DllImport("user32.dll", SetLastError=true)]
@@ -233,7 +237,113 @@ public static class InputSender {
   public static void KeyUpVk(ushort vk){ ushort sc = (ushort)MapVirtualKey(vk, 0); KeyUpScan(sc); }
   public static void KeyDownScan(ushort sc){ INPUT[] input = new INPUT[1]; input[0].type = INPUT_KEYBOARD; input[0].U.ki.wVk = 0; input[0].U.ki.wScan = sc; input[0].U.ki.dwFlags = KEYEVENTF_SCANCODE; input[0].U.ki.time = 0; input[0].U.ki.dwExtraInfo = UIntPtr.Zero; SendInput(1, input, System.Runtime.InteropServices.Marshal.SizeOf(typeof(INPUT))); }
   public static void KeyUpScan(ushort sc){ INPUT[] input = new INPUT[1]; input[0].type = INPUT_KEYBOARD; input[0].U.ki.wVk = 0; input[0].U.ki.wScan = sc; input[0].U.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP; input[0].U.ki.time = 0; input[0].U.ki.dwExtraInfo = UIntPtr.Zero; SendInput(1, input, System.Runtime.InteropServices.Marshal.SizeOf(typeof(INPUT))); }
-  public static void SendUnicodeChar(ushort ch){ INPUT[] d = new INPUT[1]; d[0].type = INPUT_KEYBOARD; d[0].U.ki.wVk = 0; d[0].U.ki.wScan = ch; d[0].U.ki.dwFlags = KEYEVENTF_UNICODE; d[0].U.ki.time = 0; d[0].U.ki.dwExtraInfo = UIntPtr.Zero; SendInput(1, d, System.Runtime.InteropServices.Marshal.SizeOf(typeof(INPUT))); INPUT[] u = new INPUT[1]; u[0].type = INPUT_KEYBOARD; u[0].U.ki.wVk = 0; u[0].U.ki.wScan = ch; u[0].U.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP; u[0].U.ki.time = 0; u[0].U.ki.dwExtraInfo = UIntPtr.Zero; SendInput(1, u, System.Runtime.InteropServices.Marshal.SizeOf(typeof(INPUT))); }
+
+  // --- Window finding / focus stealing ---
+  // WshShell.AppActivate can report success while Windows' foreground-lock
+  // protection silently blocks the actual focus switch, especially when the
+  // caller is a background process (like this one, spawned from Node) rather
+  // than something the user just interacted with. SendInput only reaches
+  // whichever window currently has real keyboard focus, so if the switch
+  // silently fails, every key we send goes nowhere with no error. The
+  // AttachThreadInput technique below is the standard reliable workaround.
+  //
+  // IMPORTANT: we match by owning PROCESS NAME (eurotrucks2.exe), not window
+  // title text. Title-substring matching is unreliable - Steam's own windows,
+  // overlays, or even a browser tab can contain "Euro Truck Simulator 2" in
+  // their title, causing us to successfully activate completely the wrong
+  // window while the real game window never gets focus (which would explain
+  // "no error, but nothing happens in-game").
+  delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+  [DllImport("user32.dll")] static extern int GetWindowTextLength(IntPtr hWnd);
+  [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+  const int SW_RESTORE = 9;
+
+  static string ProcessNameForWindow(IntPtr hWnd) {
+    uint pid;
+    GetWindowThreadProcessId(hWnd, out pid);
+    try {
+      return System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+    } catch {
+      return "";
+    }
+  }
+
+  static string TitleForWindow(IntPtr hWnd) {
+    int len = GetWindowTextLength(hWnd);
+    if (len == 0) return "";
+    var sb = new StringBuilder(len + 1);
+    GetWindowText(hWnd, sb, sb.Capacity);
+    return sb.ToString();
+  }
+
+  public static string DescribeWindow(IntPtr hWnd) {
+    if (hWnd == IntPtr.Zero) return "(none)";
+    uint pid;
+    GetWindowThreadProcessId(hWnd, out pid);
+    return "\"" + TitleForWindow(hWnd) + "\" [process=" + ProcessNameForWindow(hWnd) + ".exe, pid=" + pid + "]";
+  }
+
+  // Primary: find the main visible window belonging to the given process
+  // name (case-insensitive, no .exe). Falls back to title-substring matching
+  // only if no window from that process is found, so older/renamed builds
+  // still have a chance of working.
+  public static IntPtr FindGameWindow(string processNameHint, string titleFallback) {
+    IntPtr byProcess = IntPtr.Zero;
+    EnumWindows((hWnd, lParam) => {
+      if (!IsWindowVisible(hWnd)) return true;
+      if (TitleForWindow(hWnd).Length == 0) return true;
+      if (string.Equals(ProcessNameForWindow(hWnd), processNameHint, StringComparison.OrdinalIgnoreCase)) {
+        byProcess = hWnd;
+        return false; // stop enumerating
+      }
+      return true;
+    }, IntPtr.Zero);
+    if (byProcess != IntPtr.Zero) return byProcess;
+
+    IntPtr byTitle = IntPtr.Zero;
+    EnumWindows((hWnd, lParam) => {
+      if (!IsWindowVisible(hWnd)) return true;
+      if (TitleForWindow(hWnd).IndexOf(titleFallback, StringComparison.OrdinalIgnoreCase) >= 0) {
+        byTitle = hWnd;
+        return false;
+      }
+      return true;
+    }, IntPtr.Zero);
+    return byTitle;
+  }
+
+  public static bool ActivateWindow(IntPtr hWnd) {
+    if (hWnd == IntPtr.Zero) return false;
+    if (IsIconic(hWnd)) ShowWindow(hWnd, SW_RESTORE);
+
+    IntPtr fg = GetForegroundWindow();
+    uint fgThread;
+    GetWindowThreadProcessId(fg, out fgThread);
+    uint targetThread;
+    GetWindowThreadProcessId(hWnd, out targetThread);
+    uint curThread = GetCurrentThreadId();
+
+    bool attachedFg = fgThread != curThread && AttachThreadInput(curThread, fgThread, true);
+    bool attachedTarget = targetThread != curThread && AttachThreadInput(curThread, targetThread, true);
+
+    BringWindowToTop(hWnd);
+    bool ok = SetForegroundWindow(hWnd);
+
+    if (attachedFg) AttachThreadInput(curThread, fgThread, false);
+    if (attachedTarget) AttachThreadInput(curThread, targetThread, false);
+
+    return ok || GetForegroundWindow() == hWnd;
+  }
 }
 "@
 
@@ -247,16 +357,23 @@ ${seqLiteral}
 '@
 $sequence = $json | ConvertFrom-Json
 
-# Ensure target window is active just before sending input.
-# AppActivate returns $false (rather than throwing) if no matching window
-# is found, so we must check it explicitly - otherwise a closed/renamed
-# game window fails completely silently and keys go nowhere.
-$activated = $wshell.AppActivate('${windowTitle.replace(/'/g, "''")}')
-if (-not $activated) {
-  Write-Error "Could not find window titled '${windowTitle.replace(/'/g, "''")}'. Is Euro Truck Simulator 2 running? (window title can be changed via ETS2_WINDOW_TITLE)"
+# Find and activate the game window. Both failure modes are reported
+# distinctly so it's clear whether ETS2 wasn't found at all, vs. found but
+# Windows blocked bringing it to the foreground.
+$hwnd = [InputSender]::FindGameWindow('${processName.replace(/'/g, "''")}', '${windowTitle.replace(/'/g, "''")}')
+if ($hwnd -eq [IntPtr]::Zero) {
+  Write-Error "Could not find eurotrucks2.exe or a window titled '${windowTitle.replace(/'/g, "''")}'. Is ETS2 running? (process name can be changed via ETS2_PROCESS_NAME, window title fallback via ETS2_WINDOW_TITLE)"
   exit 1
 }
-Start-Sleep -Milliseconds 60
+# Diagnostic: print exactly which window/process we're about to send keys to,
+# so a wrong-window match (e.g. Steam itself) is visible instead of silent.
+Write-Output ("Targeting window: " + [InputSender]::DescribeWindow($hwnd))
+$activated = [InputSender]::ActivateWindow($hwnd)
+if (-not $activated) {
+  Write-Error "Found the ETS2 window but Windows would not bring it to the foreground. Try clicking on the ETS2 window once, then retry."
+  exit 1
+}
+Start-Sleep -Milliseconds 120
 
 foreach ($combo in $sequence) {
   $modsList = @('SHIFT','CTRL','ALT')
@@ -291,12 +408,16 @@ foreach ($combo in $sequence) {
 }
 `;
 
-  await execFileAsync('powershell.exe', [
+  const { stdout } = await execFileAsync('powershell.exe', [
     '-NoProfile',
     '-NonInteractive',
     '-ExecutionPolicy', 'Bypass',
     '-Command', ps,
   ], { windowsHide: true });
+
+  if (stdout && stdout.trim()) {
+    console.log('[ets2-controls]', stdout.trim());
+  }
 }
 
 function tokenToSendKeys(t: string): string | null {
@@ -347,4 +468,40 @@ $wshell.SendKeys($s)
     '-ExecutionPolicy', 'Bypass',
     '-Command', ps,
   ], { windowsHide: true });
+}
+
+// --- Unified entry point ---
+// Picks how a command actually reaches the game. vJoy is the default: it
+// sends a real driver-level virtual joystick button press, which ETS2 reads
+// exactly like a physical button box - no window focus/foreground stealing
+// involved at all, unlike the keyboard-injection methods below. Those are
+// kept available as fallbacks (set ETS2_INPUT_METHOD) for anyone who hasn't
+// set up vJoy yet.
+export type InputMethod = 'vjoy' | 'sendinput' | 'sendkeys';
+
+export function getInputMethod(): InputMethod {
+  const raw = (process.env.ETS2_INPUT_METHOD || 'vjoy').toLowerCase();
+  if (raw === 'sendinput' || raw === 'sendkeys') return raw;
+  return 'vjoy';
+}
+
+export async function sendControlCommand(command: string): Promise<void> {
+  const method = getInputMethod();
+
+  if (method === 'vjoy') {
+    await sendVjoyCommand(command);
+    return;
+  }
+
+  const keys = getSendKeysForCommand(command);
+  if (!keys) {
+    throw new Error(`No key mapping for command: ${command}`);
+  }
+
+  if (method === 'sendkeys') {
+    await sendKeysViaWScript(keys);
+    return;
+  }
+
+  await sendKeysToEts2(keys);
 }
