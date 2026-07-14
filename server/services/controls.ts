@@ -247,8 +247,15 @@ ${seqLiteral}
 '@
 $sequence = $json | ConvertFrom-Json
 
-# Ensure target window is active just before sending input
-$null = $wshell.AppActivate('${windowTitle.replace(/'/g, "''")}')
+# Ensure target window is active just before sending input.
+# AppActivate returns $false (rather than throwing) if no matching window
+# is found, so we must check it explicitly - otherwise a closed/renamed
+# game window fails completely silently and keys go nowhere.
+$activated = $wshell.AppActivate('${windowTitle.replace(/'/g, "''")}')
+if (-not $activated) {
+  Write-Error "Could not find window titled '${windowTitle.replace(/'/g, "''")}'. Is Euro Truck Simulator 2 running? (window title can be changed via ETS2_WINDOW_TITLE)"
+  exit 1
+}
 Start-Sleep -Milliseconds 60
 
 foreach ($combo in $sequence) {
@@ -262,14 +269,19 @@ foreach ($combo in $sequence) {
   $others = @()
   foreach ($k in $combo) { if (-not ($modsList -contains $k)) { $others += $k } }
 
+  # IMPORTANT: always inject via scan code (KEYEVENTF_SCANCODE), never via
+  # KEYEVENTF_UNICODE. Unicode key events are meant for typing into text
+  # fields (WM_CHAR-style) and are not seen by DirectInput/raw-input games
+  # like ETS2, which poll actual keyboard scan codes. Every key - modified
+  # or not - must go through the same scan-code path or it silently does
+  # nothing in-game.
   foreach ($key in $others) {
-    if ($key -match '^[A-Z0-9]$' -and $mods.Count -eq 0) {
-      # Use Unicode typing for plain characters so text apps show input
-      [InputSender]::SendUnicodeChar([uint16][char]$key)
-    } elseif ($vk.ContainsKey($key)) {
+    if ($vk.ContainsKey($key)) {
       [InputSender]::KeyDownVk([uint16]$vk[$key])
       Start-Sleep -Milliseconds 20
       [InputSender]::KeyUpVk([uint16]$vk[$key])
+    } else {
+      Write-Error "Unknown key token: $key"
     }
   }
 

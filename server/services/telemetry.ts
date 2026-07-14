@@ -80,12 +80,24 @@ async function checkETS2ServerConnection(): Promise<boolean> {
       return false;
     }
   } catch (error) {
-    if (isConnectedToETS2Server) {
-      console.log('❌ ETS2 telemetry server not available:', error.message);
-      isConnectedToETS2Server = false;
+  if (isConnectedToETS2Server) {
+    if (error instanceof Error) {
+      console.log(
+        "❌ ETS2 telemetry server not available:",
+        error.message
+      );
+    } else {
+      console.log(
+        "❌ ETS2 telemetry server not available:",
+        error
+      );
     }
-    return false;
+
+    isConnectedToETS2Server = false;
   }
+
+  return false;
+}
 }
 
 // Read telemetry data from ETS2 server or return demo data
@@ -117,10 +129,15 @@ export async function readTelemetryData(): Promise<TelemetryData | null> {
     return null;
     
   } catch (error) {
-    console.error('Error reading telemetry data:', error.message || error);
-    // Return null on error (no demo data fallback)
-    return null;
+  if (error instanceof Error) {
+    console.error("Error reading telemetry data:", error.message);
+    console.error(error.stack);
+  } else {
+    console.error("Error reading telemetry data:", error);
   }
+
+  return null;
+}
 }
 
 // Process raw telemetry data from ETS2 server to match our schema
@@ -160,27 +177,32 @@ function processTelemetryData(rawData: any): TelemetryData {
       fuelWarningOn: rawData.truck?.fuelWarningOn ?? false,
       
       // Engine and electrical
-      engineEnabled: rawData.truck?.engineEnabled ?? false,
-      electricEnabled: rawData.truck?.electricEnabled ?? false,
+      // NOTE: Funbit's real API uses "...On" suffixed names (engineOn, electricOn, etc),
+      // not "...Enabled". The previous keys never matched the actual payload, so these
+      // always silently fell back to false regardless of real truck state.
+      engineEnabled: rawData.truck?.engineOn ?? false,
+      electricEnabled: rawData.truck?.electricOn ?? false,
       engineTemperature: rawData.truck?.engineTemperature ?? 0,
       oilPressure: rawData.truck?.oilPressure ?? 0,
       oilTemperature: rawData.truck?.oilTemperature ?? 0,
       waterTemperature: rawData.truck?.waterTemperature ?? 0,
       batteryVoltage: rawData.truck?.batteryVoltage ?? 24,
-      batteryVoltageWarning: rawData.truck?.batteryVoltageWarning ?? false,
+      batteryVoltageWarning: rawData.truck?.batteryVoltageWarningOn ?? false,
       
       // Lights
-      lightsParking: rawData.truck?.lightsParking ?? false,
-      lightsBeamLow: rawData.truck?.lightsBeamLow ?? false,
-      lightsBeamHigh: rawData.truck?.lightsBeamHigh ?? false,
-      lightsAuxFront: rawData.truck?.lightsAuxFront ?? false,
-      lightsAuxRoof: rawData.truck?.lightsAuxRoof ?? false,
-      lightsBeacon: rawData.truck?.lightsBeacon ?? false,
-      lightsBrake: rawData.truck?.lightsBrake ?? false,
-      lightsReverse: rawData.truck?.lightsReverse ?? false,
-      lightsHazard: rawData.truck?.lightsHazard ?? false,
-      lightsIndicatorLeft: rawData.truck?.lightsIndicatorLeft ?? false,
-      lightsIndicatorRight: rawData.truck?.lightsIndicatorRight ?? false,
+      lightsParking: rawData.truck?.lightsParkingOn ?? false,
+      lightsBeamLow: rawData.truck?.lightsBeamLowOn ?? false,
+      lightsBeamHigh: rawData.truck?.lightsBeamHighOn ?? false,
+      lightsAuxFront: rawData.truck?.lightsAuxFrontOn ?? false,
+      lightsAuxRoof: rawData.truck?.lightsAuxRoofOn ?? false,
+      lightsBeacon: rawData.truck?.lightsBeaconOn ?? false,
+      lightsBrake: rawData.truck?.lightsBrakeOn ?? false,
+      lightsReverse: rawData.truck?.lightsReverseOn ?? false,
+      // Funbit does not expose a dedicated "hazard" flag; hazards are both blinkers
+      // active at once, so derive it from the two indicator fields it does provide.
+      lightsHazard: Boolean(rawData.truck?.blinkerLeftOn) && Boolean(rawData.truck?.blinkerRightOn),
+      lightsIndicatorLeft: rawData.truck?.blinkerLeftOn ?? false,
+      lightsIndicatorRight: rawData.truck?.blinkerRightOn ?? false,
       
       // Position and movement
       placement: rawData.truck?.placement ?? { x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0 },
@@ -197,16 +219,16 @@ function processTelemetryData(rawData: any): TelemetryData {
       wearWheels: rawData.truck?.wearWheels ?? 0,
       
       // Additional properties
-      retarderLevel: rawData.truck?.retarderLevel ?? 0,
+      retarderLevel: rawData.truck?.retarderBrake ?? 0,
       airPressure: rawData.truck?.airPressure ?? 0,
-      airPressureWarning: rawData.truck?.airPressureWarning ?? false,
-      airPressureEmergency: rawData.truck?.airPressureEmergency ?? false,
+      airPressureWarning: rawData.truck?.airPressureWarningOn ?? false,
+      airPressureEmergency: rawData.truck?.airPressureEmergencyOn ?? false,
       adblue: rawData.truck?.adblue ?? 0,
       adblueCapacity: rawData.truck?.adblueCapacity ?? 0,
       adblueAverageConsumption: rawData.truck?.adblueAverageConsumption ?? 0,
       adblueWarningOn: rawData.truck?.adblueWarningOn ?? false,
-      wipers: rawData.truck?.wipers ?? false,
-      dashboardBacklight: rawData.truck?.dashboardBacklight ?? 1,
+      wipers: rawData.truck?.wipersOn ?? false,
+      dashboardBacklight: rawData.truck?.lightsDashboardValue ?? 1,
       blinkerLeftActive: rawData.truck?.blinkerLeftActive ?? false,
       blinkerRightActive: rawData.truck?.blinkerRightActive ?? false,
       blinkerLeftOn: rawData.truck?.blinkerLeftOn ?? false,
