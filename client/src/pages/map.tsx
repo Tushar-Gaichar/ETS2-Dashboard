@@ -464,7 +464,7 @@ export default function MapPage() {
   const speedLimitWarning = !!telemetryData?.navigation?.speedLimitWarning;
 
   return (
-    <div className="ets2-map relative h-screen w-screen overflow-hidden bg-[#1c1c1e]">
+    <div className="ets2-map relative h-dvh w-full overflow-hidden bg-[#1c1c1e]">
       {/* Dark-theme override for MapLibre's built-in zoom/compass/fullscreen
           controls — they ship styled for a light map by default. */}
       <style>{`
@@ -500,43 +500,51 @@ export default function MapPage() {
 
       {/* Buttons, speed badge, and route bar all stacked in one flex column
           (in that order) so none of them can overlap regardless of how tall
-          any of them render — this replaced two separately absolute-
-          positioned elements guessing pixel offsets at each other, which is
-          exactly what caused the route bar to collide with the buttons. */}
-      <div className="absolute bottom-16 left-0 right-0 z-10 flex flex-col gap-3 px-3 pb-3">
-        <div className="flex justify-end gap-2 self-end">
+          any of them render. The container itself is pointer-events-none —
+          an absolutely-positioned full-width div still intercepts clicks
+          for whatever's underneath even where nothing is visibly drawn,
+          which is exactly what was swallowing taps on the Controls/Settings
+          nav buttons in mobile landscape once this stack's height pushed it
+          low enough to overlap the nav bar. Each real interactive piece
+          below opts back in with pointer-events-auto. landscape: variants
+          shrink everything a bit, since landscape phones have much less
+          vertical room to work with. */}
+      <div className="pointer-events-none absolute bottom-16 left-0 right-0 z-10 flex flex-col gap-3 px-3 pb-3 landscape:gap-2 landscape:pb-2">
+        <div className="pointer-events-auto flex justify-end gap-2 self-end">
           <Button
             size="icon"
             onClick={() => setClickToRouteEnabled((v) => !v)}
             title="Tap the map to route there"
-            className={`h-11 w-11 rounded-full border border-white/10 shadow-lg backdrop-blur-md ${
+            className={`h-11 w-11 rounded-full border border-white/10 shadow-lg backdrop-blur-md landscape:h-9 landscape:w-9 ${
               clickToRouteEnabled ? "bg-primary text-primary-foreground" : "bg-black/60 text-white hover:bg-black/70"
             }`}
           >
-            <Navigation className={`h-5 w-5 ${routing ? "animate-pulse" : ""}`} />
+            <Navigation className={`h-5 w-5 landscape:h-4 landscape:w-4 ${routing ? "animate-pulse" : ""}`} />
           </Button>
           <Button
             size="icon"
             onClick={handleRecenter}
-            className={`h-11 w-11 rounded-full border border-white/10 shadow-lg backdrop-blur-md ${
+            className={`h-11 w-11 rounded-full border border-white/10 shadow-lg backdrop-blur-md landscape:h-9 landscape:w-9 ${
               followTruck ? "bg-primary text-primary-foreground" : "bg-black/60 text-white hover:bg-black/70"
             }`}
           >
-            <LocateFixed className="h-5 w-5" />
+            <LocateFixed className="h-5 w-5 landscape:h-4 landscape:w-4" />
           </Button>
         </div>
 
         <div
-          className={`flex h-20 w-20 flex-col items-center justify-center gap-0.5 self-start rounded-2xl border shadow-2xl backdrop-blur-md transition-colors ${
+          className={`pointer-events-auto flex h-20 w-20 flex-col items-center justify-center gap-0.5 self-start rounded-2xl border shadow-2xl backdrop-blur-md transition-colors landscape:h-14 landscape:w-14 ${
             speedLimitWarning ? "speed-warning-flash border-white/20" : "border-white/10 bg-black/60"
           }`}
         >
-          <span className="text-sm font-medium leading-none text-white/70">{speed}</span>
-          {speedLimit > 0 && <span className="text-3xl font-bold leading-none text-white">{speedLimit}</span>}
+          <span className="text-sm font-medium leading-none text-white/70 landscape:text-xs">{speed}</span>
+          {speedLimit > 0 && (
+            <span className="text-3xl font-bold leading-none text-white landscape:text-2xl">{speedLimit}</span>
+          )}
         </div>
 
         {routeResult && (
-          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/60 px-4 py-2.5 shadow-2xl backdrop-blur-md">
+          <div className="pointer-events-auto flex items-center justify-between rounded-2xl border border-white/10 bg-black/60 px-4 py-2.5 shadow-2xl backdrop-blur-md landscape:px-3 landscape:py-1.5">
             <div className="flex items-baseline gap-3">
               <span className="text-lg font-semibold text-white">{routeResult.distanceKm.toFixed(0)} km</span>
               <span className="text-sm text-neutral-400">
