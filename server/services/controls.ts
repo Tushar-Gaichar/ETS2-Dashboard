@@ -16,22 +16,24 @@ export type KeySequence = KeyCombo[];
 const defaultSequenceMap: Record<string, KeySequence> = {
   toggle_engine: [[['E']].flat()],
   toggle_electric: [[['SHIFT', 'E']].flat()],
-  toggle_lights_parking: [[['VK_F2']].flat()],
-  toggle_lights_beam_low: [[['VK_F3']].flat()],
+  toggle_lights_parking: [[['VK_F2']].flat()], // cycles the game's actual light modes (off/parking/low beam) — the only light-mode key ETS2 exposes
   toggle_lights_beam_high: [[['VK_F4']].flat()],
   toggle_lights_beacon: [[['VK_F5']].flat()],
-  toggle_lights_aux_front: [[['VK_F6']].flat()],
-  toggle_lights_aux_roof: [[['VK_F7']].flat()],
   horn_short: [[['H']].flat()],
   horn_long: [[['SHIFT', 'H']].flat()],
   toggle_cruise_control: [[['C']].flat()],
-  toggle_retarder: [[['R']].flat()],
+  // Real ETS2 default retarder keybinds vary by control scheme — these are a
+  // reasonable guess (Page Up/Down), same as every other default here.
+  // Override via a loaded controls.sii, or just rebind directly in ETS2
+  // if you're using vJoy (the default input method), since the exact key
+  // doesn't matter there — you bind the vJoy button number in-game yourself.
+  retarder_increase: [[['VK_PRIOR']].flat()],
+  retarder_decrease: [[['VK_NEXT']].flat()],
   toggle_differential_lock: [[['D']].flat()],
   toggle_lift_axle: [[['L']].flat()],
   toggle_trailer_lift_axle: [[['SHIFT', 'L']].flat()],
   shift_up: [[['VK_UP']].flat()],
   shift_down: [[['VK_DOWN']].flat()],
-  toggle_range_splitter: [[['S']].flat()],
 };
 
 let overridesLoaded = false;
@@ -76,21 +78,18 @@ function parseControlsSii(contents: string): Partial<Record<string, KeySequence>
     [/engine.*(toggle|start|stop)/i, 'toggle_engine'],
     [/(electric|electrical)/i, 'toggle_electric'],
     [/parking.*light/i, 'toggle_lights_parking'],
-    [/(low.*beam|beam.*low)/i, 'toggle_lights_beam_low'],
     [/(high.*beam|beam.*high)/i, 'toggle_lights_beam_high'],
     [/beacon/i, 'toggle_lights_beacon'],
-    [/(aux.*front|front.*aux)/i, 'toggle_lights_aux_front'],
-    [/(aux.*roof|roof.*aux)/i, 'toggle_lights_aux_roof'],
     [/(air.*horn|long.*horn)/i, 'horn_long'],
     [/\bhorn\b/i, 'horn_short'],
     [/cruise.*control/i, 'toggle_cruise_control'],
-    [/retarder/i, 'toggle_retarder'],
+    [/retarder.*(increase|up|\+)/i, 'retarder_increase'],
+    [/retarder.*(decrease|down|-)/i, 'retarder_decrease'],
     [/(diff.*lock|differential)/i, 'toggle_differential_lock'],
     [/(lift.*trailer.*axle)/i, 'toggle_trailer_lift_axle'],
     [/(lift.*axle)/i, 'toggle_lift_axle'],
     [/(shift.*up|gear.*up)/i, 'shift_up'],
     [/(shift.*down|gear.*down)/i, 'shift_down'],
-    [/(range.*split)/i, 'toggle_range_splitter'],
   ];
 
   const extractKeys = (expr: string): KeySequence | null => {
@@ -141,6 +140,10 @@ function mapTokenToVkName(token: string): string | null {
     down: 'VK_DOWN',
     left: 'VK_LEFT',
     right: 'VK_RIGHT',
+    prior: 'VK_PRIOR',
+    pageup: 'VK_PRIOR',
+    next: 'VK_NEXT',
+    pagedown: 'VK_NEXT',
     lshift: 'SHIFT',
     rshift: 'SHIFT',
     shift: 'SHIFT',
@@ -174,7 +177,14 @@ export function loadControlsOverridesFromText(text: string): number {
 }
 
 // Sends input to ETS2 using Windows SendInput via PowerShell (P/Invoke). Windows-only.
-export async function sendKeysToEts2(sequence: KeySequence): Promise<void> {
+// Same reasoning as vjoy.ts's PRESS_HOLD_OVERRIDES_MS: a real horn press is
+// noticeably longer than a brief toggle pulse.
+const SENDINPUT_HOLD_MS_OVERRIDES: Partial<Record<string, number>> = {
+  horn_short: 150,
+  horn_long: 400,
+};
+
+export async function sendKeysToEts2(sequence: KeySequence, command?: string): Promise<void> {
   if (process.platform !== 'win32') {
     throw new Error('Sending controls is only supported on Windows in this build.');
   }
@@ -189,6 +199,8 @@ export async function sendKeysToEts2(sequence: KeySequence): Promise<void> {
     return;
   }
 
+  const holdMs = (command && SENDINPUT_HOLD_MS_OVERRIDES[command]) ?? 20;
+
   // Build PowerShell script with C# P/Invoke to SendInput
   const vkMap: Record<string, number> = {
     // Letters and digits
@@ -201,6 +213,8 @@ export async function sendKeysToEts2(sequence: KeySequence): Promise<void> {
     VK_F9: 0x78, VK_F10: 0x79, VK_F11: 0x7A, VK_F12: 0x7B,
     // Arrows
     VK_UP: 0x26, VK_DOWN: 0x28, VK_LEFT: 0x25, VK_RIGHT: 0x27,
+    // Page Up/Down (used for the retarder increase/decrease default binds)
+    VK_PRIOR: 0x21, VK_NEXT: 0x22,
   };
 
   const seqLiteral = JSON.stringify(sequence);
@@ -395,7 +409,7 @@ foreach ($combo in $sequence) {
   foreach ($key in $others) {
     if ($vk.ContainsKey($key)) {
       [InputSender]::KeyDownVk([uint16]$vk[$key])
-      Start-Sleep -Milliseconds 20
+      Start-Sleep -Milliseconds ${holdMs}
       [InputSender]::KeyUpVk([uint16]$vk[$key])
     } else {
       Write-Error "Unknown key token: $key"
@@ -426,6 +440,8 @@ function tokenToSendKeys(t: string): string | null {
   if (t === 'VK_DOWN') return '{DOWN}';
   if (t === 'VK_LEFT') return '{LEFT}';
   if (t === 'VK_RIGHT') return '{RIGHT}';
+  if (t === 'VK_PRIOR') return '{PGUP}';
+  if (t === 'VK_NEXT') return '{PGDN}';
   const fMatch = /^VK_F(\d+)$/.exec(t);
   if (fMatch) return `{F${fMatch[1]}}`;
   if (/^[A-Z0-9]$/.test(t)) return t; // letters/digits
@@ -503,5 +519,5 @@ export async function sendControlCommand(command: string): Promise<void> {
     return;
   }
 
-  await sendKeysToEts2(keys);
+  await sendKeysToEts2(keys, command);
 }

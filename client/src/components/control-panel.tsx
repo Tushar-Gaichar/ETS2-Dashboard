@@ -11,11 +11,9 @@ import {
   Truck,
   Zap,
   Sun,
-  Moon,
   AlertTriangle,
   ArrowUp,
   ArrowDown,
-  RotateCcw,
   Lock,
   Maximize2,
   Activity
@@ -33,7 +31,7 @@ export default function ControlPanel({
   onSendCommand, 
   isConnected 
 }: ControlPanelProps) {
-  const [feedbackMessage, setFeedbackMessage] = useState<string>("");
+  const [uploadMessage, setUploadMessage] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -49,29 +47,31 @@ export default function ControlPanel({
       });
       const data = await res.json();
       if (res.ok) {
-        setFeedbackMessage(`Loaded keybinds (${data.mappings}) from controls.sii`);
+        setUploadMessage(`Loaded keybinds (${data.mappings}) from controls.sii`);
       } else {
-        setFeedbackMessage(data?.message || 'Failed to load controls.sii');
+        setUploadMessage(data?.message || 'Failed to load controls.sii');
       }
     } catch {
-      setFeedbackMessage('Failed to load controls.sii');
+      setUploadMessage('Failed to load controls.sii');
     } finally {
       setUploading(false);
-      setTimeout(() => setFeedbackMessage(""), 2500);
+      setTimeout(() => setUploadMessage(""), 2500);
     }
   };
 
   const handleCommand = (command: ControlCommand['command'], value?: boolean) => {
-    if (!isConnected) {
-      setFeedbackMessage("Not connected to server");
-      setTimeout(() => setFeedbackMessage(""), 2000);
-      return;
-    }
-
+    if (!isConnected) return; // buttons are already disabled while disconnected, so this shouldn't be reachable
     onSendCommand({ command, value });
-    setFeedbackMessage(`Command sent: ${command.replace('_', ' ').toUpperCase()}`);
-    setTimeout(() => setFeedbackMessage(""), 2000);
   };
+
+  // Derives a human-readable light mode from telemetry instead of a plain
+  // ON/OFF badge, since "Light Modes" cycles through actual distinct states
+  // (not a simple toggle) — off / parking / low beam.
+  const lightModeLabel = telemetryData?.truck.lightsBeamLow
+    ? "Low Beam"
+    : telemetryData?.truck.lightsParking
+    ? "Parking"
+    : "Off";
 
   const getStatusBadge = (isActive: boolean) => (
     <Badge variant={isActive ? "default" : "secondary"} className="ml-2">
@@ -107,9 +107,9 @@ export default function ControlPanel({
           </div>
         </div>
 
-        {feedbackMessage && (
+        {uploadMessage && (
           <div className="bg-primary/20 border border-primary/30 rounded-lg p-3 mb-4 text-center">
-            <span className="text-sm">{feedbackMessage}</span>
+            <span className="text-sm">{uploadMessage}</span>
           </div>
         )}
 
@@ -200,23 +200,11 @@ export default function ControlPanel({
                 >
                   <div className="flex items-center">
                     <Sun className="mr-2 h-4 w-4" />
-                    Parking Lights
+                    Light Modes
                   </div>
-                  {getStatusBadge(telemetryData?.truck.lightsParking || false)}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full justify-between"
-                  onClick={() => handleCommand('toggle_lights_beam_low')}
-                  disabled={!isConnected}
-                >
-                  <div className="flex items-center">
-                    <Moon className="mr-2 h-4 w-4" />
-                    Low Beam
-                  </div>
-                  {getStatusBadge(telemetryData?.truck.lightsBeamLow || false)}
+                  <Badge variant={lightModeLabel === "Off" ? "secondary" : "default"} className="ml-2">
+                    {lightModeLabel}
+                  </Badge>
                 </Button>
 
                 <Button
@@ -246,30 +234,6 @@ export default function ControlPanel({
                   </div>
                   {getStatusBadge(telemetryData?.truck.lightsBeacon || false)}
                 </Button>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleCommand('toggle_lights_aux_front')}
-                    disabled={!isConnected}
-                  >
-                    <div className="flex items-center">
-                      <Lightbulb className="mr-1 h-3 w-3" />
-                      Front Aux
-                    </div>
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => handleCommand('toggle_lights_aux_roof')}
-                    disabled={!isConnected}
-                  >
-                    <div className="flex items-center">
-                      <Lightbulb className="mr-1 h-3 w-3" />
-                      Roof Aux
-                    </div>
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -316,31 +280,27 @@ export default function ControlPanel({
                   </Button>
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => handleCommand('toggle_range_splitter')}
-                  disabled={!isConnected}
-                >
-                  <div className="flex items-center">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Range Splitter
-                  </div>
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleCommand('retarder_increase')}
+                    disabled={!isConnected}
+                  >
+                    <ArrowUp className="mr-2 h-4 w-4" />
+                    Retarder +
+                  </Button>
 
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => handleCommand('toggle_retarder')}
-                  disabled={!isConnected}
-                >
-                  <div className="flex items-center">
-                    <Activity className="mr-2 h-4 w-4" />
-                    Retarder
-                  </div>
-                </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleCommand('retarder_decrease')}
+                    disabled={!isConnected}
+                  >
+                    <ArrowDown className="mr-2 h-4 w-4" />
+                    Retarder -
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

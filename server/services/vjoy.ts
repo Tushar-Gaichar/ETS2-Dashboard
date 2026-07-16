@@ -143,22 +143,19 @@ async function ensureDevice(): Promise<VjoyDeviceInstance> {
 export const defaultVjoyButtonMap: Record<string, number> = {
   toggle_engine: 1,
   toggle_electric: 2,
-  toggle_lights_parking: 3,
-  toggle_lights_beam_low: 4,
+  toggle_lights_parking: 3, // cycles the game's actual light modes (off/parking/low beam) — the only light-mode key ETS2 exposes
   toggle_lights_beam_high: 5,
   toggle_lights_beacon: 6,
-  toggle_lights_aux_front: 7,
-  toggle_lights_aux_roof: 8,
   horn_short: 9,
   horn_long: 10,
   toggle_cruise_control: 11,
-  toggle_retarder: 12,
   toggle_differential_lock: 13,
   toggle_lift_axle: 14,
   toggle_trailer_lift_axle: 15,
   shift_up: 16,
   shift_down: 17,
-  toggle_range_splitter: 18,
+  retarder_increase: 19,
+  retarder_decrease: 20,
 };
 
 export function getVjoyButtonForCommand(command: string): number | undefined {
@@ -167,10 +164,26 @@ export function getVjoyButtonForCommand(command: string): number | undefined {
 
 // How long to hold the virtual button down before releasing. ETS2 reads a
 // vJoy bind as a simple press/release, same as a keyboard key, so a short
-// pulse is enough - mirrors the key-down/key-up timing used for SendInput.
+// pulse is enough for toggles - mirrors the key-down/key-up timing used for
+// SendInput.
 const PRESS_HOLD_MS = 60;
 
-export async function pressVjoyButton(buttonNumber: number): Promise<void> {
+// A real horn press/tap is noticeably longer than a toggle pulse - a 60ms
+// blip barely registers as a horn honk in-game. Override just for the horn
+// commands; every other command keeps the brief PRESS_HOLD_MS.
+const PRESS_HOLD_OVERRIDES_MS: Partial<Record<string, number>> = {
+  horn_short: 150,
+  horn_long: 400,
+};
+
+function getPressHoldMs(command?: string): number {
+  if (command && PRESS_HOLD_OVERRIDES_MS[command] !== undefined) {
+    return PRESS_HOLD_OVERRIDES_MS[command]!;
+  }
+  return PRESS_HOLD_MS;
+}
+
+export async function pressVjoyButton(buttonNumber: number, command?: string): Promise<void> {
   const dev = await ensureDevice();
   const btn = dev.buttons[buttonNumber];
   if (!btn) {
@@ -180,7 +193,7 @@ export async function pressVjoyButton(buttonNumber: number): Promise<void> {
     );
   }
   btn.set(true);
-  await new Promise((resolve) => setTimeout(resolve, PRESS_HOLD_MS));
+  await new Promise((resolve) => setTimeout(resolve, getPressHoldMs(command)));
   btn.set(false);
 }
 
@@ -189,7 +202,7 @@ export async function sendVjoyCommand(command: string): Promise<void> {
   if (button === undefined) {
     throw new Error(`No vJoy button mapping for command: ${command}`);
   }
-  await pressVjoyButton(button);
+  await pressVjoyButton(button, command);
 }
 
 // Release the device cleanly on shutdown so it can be reacquired by this

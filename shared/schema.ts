@@ -156,22 +156,19 @@ export const controlCommandSchema = z.object({
   command: z.enum([
     'toggle_engine',
     'toggle_electric',
-    'toggle_lights_parking',
-    'toggle_lights_beam_low',
-    'toggle_lights_beam_high',
+    'toggle_lights_parking', // cycles through the game's actual light modes (off/parking/low beam) — this is the only light-mode key ETS2 exposes
+    'toggle_lights_beam_high', // independent of the above — a real separate toggle
     'toggle_lights_beacon',
-    'toggle_lights_aux_front',
-    'toggle_lights_aux_roof',
     'horn_short',
     'horn_long',
     'toggle_cruise_control',
-    'toggle_retarder',
+    'retarder_increase',
+    'retarder_decrease',
     'toggle_differential_lock',
     'toggle_lift_axle',
     'toggle_trailer_lift_axle',
     'shift_up',
     'shift_down',
-    'toggle_range_splitter',
   ]),
   value: z.boolean().optional(),
 });
