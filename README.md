@@ -4,9 +4,11 @@
 - Node.js (LTS version) from https://nodejs.org
 - Visual Studio Code (optional but recommended)
 - Funbit ETS2 Telemetry Server running on your PC
-- [vJoy](http://vjoystick.sourceforge.net/) driver (recommended - see
-  "Controls Setup" below; the dashboard falls back to keyboard injection
-  without it, which is less reliable)
+- [vJoy](http://vjoystick.sourceforge.net/) driver - **required**. Controls
+  are sent exclusively through a virtual joystick device now (see "Controls
+  Setup" below); there's no keyboard-injection fallback anymore, since it
+  turned out to be too unreliable in practice (window focus issues,
+  DirectInput games not consistently seeing injected key events).
 
 ## Quick Setup
 
@@ -38,10 +40,9 @@ $env:NODE_ENV="development"
 npx tsx server/index.ts
 ```
 
-> **Controls now use vJoy by default** - see "Controls Setup" below before
-> expecting the dashboard buttons to do anything in-game. `ETS2_INPUT_METHOD`
-> can be set to `sendinput` or `sendkeys` to fall back to keyboard injection
-> instead, but vJoy is the recommended and most reliable method.
+> **Controls require vJoy** - see "Controls Setup" below before expecting
+> the dashboard buttons to do anything in-game. There's no alternative
+> input method to fall back to; vJoy needs to be installed and configured.
 
 ### 4. Access the Dashboard
 - **Local PC**: http://localhost:5000
@@ -57,13 +58,13 @@ npx tsx server/index.ts
 
 Dashboard buttons send commands to the server, which presses a **virtual
 joystick button** via [vJoy](http://vjoystick.sourceforge.net/) - the same
-mechanism a physical button box uses. This is far more reliable than
-simulating keyboard presses, since it doesn't depend on the game window
-having focus.
+mechanism a physical button box uses. This is the only input method the
+dashboard uses; it doesn't depend on the game window having focus, unlike
+simulating keyboard presses (which is why that approach was dropped).
 
 **One-time setup:**
 1. Install the vJoy driver and open "Configure vJoy". Enable at least one
-   device with **Number of Buttons** set to 18 or more (32 is a safe choice
+   device with **Number of Buttons** set to 38 or more (40 is a safe choice
    with room to grow).
 2. In ETS2: **Options → Controls**, and bind each action below to the
    matching vJoy button number on your device, the same way you'd bind a
@@ -79,37 +80,91 @@ having focus.
 |---|---|
 | Engine toggle | 1 |
 | Electrical toggle | 2 |
-| Parking lights | 3 |
-| Low beam | 4 |
+| Light modes (off/parking/low beam - the one key ETS2 exposes for this) | 3 |
 | High beam | 5 |
 | Beacon | 6 |
-| Aux front lights | 7 |
-| Aux roof lights | 8 |
 | Horn (short) | 9 |
 | Horn (long) | 10 |
 | Cruise control | 11 |
-| Retarder | 12 |
 | Differential lock | 13 |
 | Lift axle | 14 |
 | Trailer lift axle | 15 |
 | Shift up | 16 |
 | Shift down | 17 |
-| Range splitter | 18 |
+| Retarder increase | 19 |
+| Retarder decrease | 20 |
+| Left window up | 21 |
+| Left window down | 22 |
+| Right window up | 23 |
+| Right window down | 24 |
+| Front suspension raise | 25 |
+| Front suspension lower | 26 |
+| Rear suspension raise | 27 |
+| Rear suspension lower | 28 |
+| Suspension reset (resets both front and rear together) | 29 |
+| Parking brake | 30 |
+| Wipers (cycle) | 31 |
+| Left turn signal | 32 |
+| Right turn signal | 33 |
+| Hazard lights | 34 |
+| Trailer suspension raise | 35 |
+| Trailer suspension lower | 36 |
+| Trailer attach/detach | 37 |
+| Engine brake | 38 |
+
+Button numbers 4, 7, 8, 12, and 18 are intentionally unused - they belonged
+to features that got removed (standalone low beam, front/roof aux lights,
+a single toggle-style retarder, range splitter) because ETS2 doesn't
+actually expose independent controls for them.
 
 Defined in `server/services/vjoy.ts` (`defaultVjoyButtonMap`) if you want to
 change the numbers.
 
 **Relevant environment variables:**
-- `ETS2_INPUT_METHOD` - `vjoy` (default), `sendinput`, or `sendkeys`
 - `ETS2_VJOY_DEVICE_ID` - which vJoy device number to use (falls back to
   `DEFAULT_VJOY_DEVICE_ID` in `server/services/vjoy.ts` if unset - currently `3`)
 - `DISABLE_VJOY_VERSION_CHECK` - set to silence a harmless startup warning
   about the vJoy driver version if you're using the official vJoy build
   (the Node package targets a fork's SDK; the warning is cosmetic)
 
-> A setup helper that reads your `controls.sii` and writes matching vJoy
-> bindings automatically is planned, but not built yet - for now, binding
-> each action in ETS2's control settings is a manual one-time step.
+## Settings Page
+
+### Control Bindings reference
+Upload your `controls.sii` on the Settings page to see a read-only table of
+which in-game action is bound to which button - useful for double-checking
+your ETS2 binds actually line up with the vJoy button numbers above. This
+only displays your bindings; it doesn't change anything.
+
+> Note: the joystick-binding line format this parses hasn't been verified
+> against a real `controls.sii` yet - keyboard-binding lines are confirmed
+> working, but if your joystick bindings show up as a raw string instead of
+> a clean "device · button" pair, that's expected fallback behavior, not a
+> bug. The parsing lives in `server/services/controls.ts`.
+
+### Mouse Steer with vJoy
+Switching ETS2's input to keyboard+vJoy normally disables mouse steering
+entirely - there's no in-game menu option to re-enable it. It can be
+brought back by editing two values (`c_mousesteer` and `c_relatsteer`)
+directly inside your profile's `controls.sii`. The dashboard can do this
+edit for you, but **the whole workflow has to be followed in order**, or it
+won't stick:
+
+1. In ETS2, at the title screen, open your profile and **turn off Steam
+   Cloud** for it. If you skip this, Steam Cloud can silently sync your old
+   `controls.sii` right back over the edit the next time it syncs.
+2. **Close ETS2 completely.**
+3. Find that profile's `controls.sii` on disk (inside your ETS2 profile
+   folder) and upload it on the Settings page, under "Mouse Steer with
+   vJoy".
+4. The dashboard edits the two values and gives you back a modified file -
+   click **Download edited controls.sii**.
+5. Replace the original `controls.sii` in that same profile folder with the
+   downloaded one.
+6. Start ETS2 back up.
+
+The dashboard never touches this file on your disk directly - it only edits
+whatever content you upload and hands back the result, so nothing happens
+to your actual profile until you manually replace the file yourself in step 5.
 
 ## Troubleshooting
 
@@ -135,9 +190,7 @@ change the numbers.
 4. Use `localhost:25555` as the connection address
 
 ### Dashboard Buttons Don't Do Anything In-Game
-
-**If using vJoy (the default):**
-1. **Check the server console.** Every failure now throws a specific error
+1. **Check the server console.** Every failure throws a specific error
    (vJoy not enabled, device already in use, button not configured, etc.)
    instead of failing silently.
 2. **vJoy driver not enabled** - open "Configure vJoy" and confirm it shows
@@ -146,25 +199,10 @@ change the numbers.
    hold a given vJoy device at a time. Close SimHub or any other tool using
    the same device number, or set `ETS2_VJOY_DEVICE_ID` to an unused one.
 4. **Not enough buttons configured** - "Configure vJoy" → Number of Buttons
-   needs to be at least 18 (see the mapping table above).
+   needs to be at least 29 (see the mapping table above).
 5. **Nothing happens but no error either** - the button press reached vJoy
    fine, but ETS2 isn't bound to it yet. Go to Options → Controls in-game and
    bind the action to the matching vJoy button number.
-
-**If using `ETS2_INPUT_METHOD=sendinput` or `sendkeys`:**
-1. **Don't run ETS2 as Administrator** unless you also run this dashboard's
-   server as Administrator. Windows blocks synthetic keyboard input from a
-   non-elevated process to an elevated one (UIPI) - this fails silently,
-   with no error in the console.
-2. **Avoid exclusive fullscreen.** Use ETS2's "Fullscreen (windowed)" or
-   plain windowed display mode in Options → Graphics.
-3. **Window/process mismatch.** The server looks for the `eurotrucks2.exe`
-   process by default, falling back to a window titled
-   `Euro Truck Simulator 2`. Override with `ETS2_PROCESS_NAME` /
-   `ETS2_WINDOW_TITLE` if needed.
-4. **Check the server console** - it prints exactly which window/process was
-   targeted (`[ets2-controls] Targeting window: ...`), so a wrong-window
-   match is visible instead of silent.
 
 ### Mobile Access Issues
 1. Ensure both devices are on the same WiFi network

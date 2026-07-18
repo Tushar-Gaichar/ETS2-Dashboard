@@ -5,7 +5,8 @@ import { storage } from "./storage";
 import { readTelemetryData, updateTelemetryServerUrl, getTelemetryServerConfig } from "./services/telemetry";
 import { telemetryDataSchema, controlCommandSchema } from "@shared/schema";
 import { sendControlCommand } from "./services/controls";
-import { loadControlsOverridesFromText } from "./services/controls";
+import { loadControlsOverridesFromText, autoLoadControlBindings, getLastParsedBindings } from "./services/controls";
+import { editMouseSteerInControlsSii } from "./services/mouse-steer";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // REST API endpoints
@@ -21,17 +22,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload controls.sii text to set keybinding overrides
+  // Upload controls.sii text to parse for the bindings reference display
   app.post('/api/controls-overrides', (req, res) => {
     try {
       const { content } = req.body as { content?: string };
       if (!content || typeof content !== 'string') {
         return res.status(400).json({ message: 'Missing controls.sii content' });
       }
-      const count = loadControlsOverridesFromText(content);
-      res.json({ message: 'Overrides loaded', mappings: count });
+      const bindings = loadControlsOverridesFromText(content);
+      res.json({ message: 'Bindings loaded', mappings: bindings.length, bindings });
     } catch (error) {
-      res.status(500).json({ message: 'Failed to load overrides' });
+      res.status(500).json({ message: 'Failed to load bindings' });
+    }
+  });
+
+  // Returns whatever bindings are currently loaded, auto-detecting the most
+  // recently modified profile's controls.sii if nothing's been uploaded yet.
+  app.get('/api/controls-bindings', (_req, res) => {
+    try {
+      const existing = getLastParsedBindings();
+      const bindings = existing.length > 0 ? existing : autoLoadControlBindings();
+      res.json({ bindings });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to load bindings' });
+    }
+  });
+
+  // Edits c_mousesteer/c_relatsteer within an UPLOADED controls.sii's
+  // content and hands back the result — never touches the player's actual
+  // files directly. See mouse-steer.ts for the full workflow this expects.
+  app.post('/api/mouse-steer/edit', (req, res) => {
+    try {
+      const { content } = req.body as { content?: string };
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ success: false, message: 'Missing controls.sii content' });
+      }
+      const result = editMouseSteerInControlsSii(content);
+      res.status(result.success ? 200 : 422).json(result);
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Failed to edit controls.sii' });
     }
   });
 

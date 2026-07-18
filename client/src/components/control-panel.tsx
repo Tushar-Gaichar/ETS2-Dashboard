@@ -1,23 +1,31 @@
-import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Power, 
-  Lightbulb, 
-  Volume2, 
-  Settings, 
-  Truck,
-  Zap,
-  Sun,
-  AlertTriangle,
-  ArrowUp,
-  ArrowDown,
-  Lock,
-  Maximize2,
-  Activity
-} from "lucide-react";
+import {
+  IconPower,
+  IconBulb,
+  IconVolume2,
+  IconSettings,
+  IconTruck,
+  IconBolt,
+  IconSun,
+  IconAlertTriangle,
+  IconArrowUp,
+  IconArrowDown,
+  IconArrowLeft,
+  IconArrowRight,
+  IconLock,
+  IconMaximize,
+  IconActivity,
+  IconLayoutSidebarLeftExpand,
+  IconLayoutSidebarRight,
+  IconArrowsVertical,
+  IconParkingCircle,
+  IconWiper,
+  IconLink,
+  IconEngine,
+} from "@tabler/icons-react";
 import { TelemetryData, ControlCommand } from "@shared/schema";
 
 interface ControlPanelProps {
@@ -31,34 +39,6 @@ export default function ControlPanel({
   onSendCommand, 
   isConnected 
 }: ControlPanelProps) {
-  const [uploadMessage, setUploadMessage] = useState<string>("");
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleUploadControls = async (file: File | null) => {
-    if (!file) return;
-    try {
-      setUploading(true);
-      const text = await file.text();
-      const res = await fetch('/api/controls-overrides', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setUploadMessage(`Loaded keybinds (${data.mappings}) from controls.sii`);
-      } else {
-        setUploadMessage(data?.message || 'Failed to load controls.sii');
-      }
-    } catch {
-      setUploadMessage('Failed to load controls.sii');
-    } finally {
-      setUploading(false);
-      setTimeout(() => setUploadMessage(""), 2500);
-    }
-  };
-
   const handleCommand = (command: ControlCommand['command'], value?: boolean) => {
     if (!isConnected) return; // buttons are already disabled while disconnected, so this shouldn't be reachable
     onSendCommand({ command, value });
@@ -87,38 +67,16 @@ export default function ControlPanel({
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-success' : 'bg-destructive'}`}></div>
             <span className="text-sm">{isConnected ? 'Connected' : 'Disconnected'}</span>
-            <input
-              type="file"
-              accept=".sii,.txt,text/plain"
-              className="hidden"
-              id="controls-sii-input"
-              ref={fileInputRef}
-              onChange={(e) => handleUploadControls(e.target.files?.[0] || null)}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              className="bg-[#1b82d8] text-white hover:bg-[#166db8] border-transparent"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? 'Loading…' : 'Load controls.sii'}
-            </Button>
           </div>
         </div>
 
-        {uploadMessage && (
-          <div className="bg-primary/20 border border-primary/30 rounded-lg p-3 mb-4 text-center">
-            <span className="text-sm">{uploadMessage}</span>
-          </div>
-        )}
-
         <Tabs defaultValue="engine" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="engine">Engine</TabsTrigger>
             <TabsTrigger value="lights">Lights</TabsTrigger>
             <TabsTrigger value="transmission">Gear</TabsTrigger>
             <TabsTrigger value="other">Other</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
           </TabsList>
 
           {/* Engine & Power Controls */}
@@ -126,7 +84,7 @@ export default function ControlPanel({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Power className="mr-2 h-5 w-5" />
+                  <IconPower className="mr-2 h-5 w-5" />
                   Engine Controls
                 </CardTitle>
                 <CardDescription>
@@ -142,7 +100,7 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <IconSettings className="mr-2 h-4 w-4" />
                     Engine
                   </div>
                   {getStatusBadge(telemetryData?.truck.engineEnabled || false)}
@@ -156,7 +114,7 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Zap className="mr-2 h-4 w-4" />
+                    <IconBolt className="mr-2 h-4 w-4" />
                     Electrical
                   </div>
                   {getStatusBadge(telemetryData?.truck.electricEnabled || false)}
@@ -170,8 +128,21 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Activity className="mr-2 h-4 w-4" />
+                    <IconActivity className="mr-2 h-4 w-4" />
                     Cruise Control
+                  </div>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleCommand('toggle_engine_brake')}
+                  disabled={!isConnected}
+                >
+                  <div className="flex items-center">
+                    <IconEngine className="mr-2 h-4 w-4" />
+                    Engine Brake
                   </div>
                 </Button>
               </CardContent>
@@ -183,7 +154,7 @@ export default function ControlPanel({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Lightbulb className="mr-2 h-5 w-5" />
+                  <IconBulb className="mr-2 h-5 w-5" />
                   Lighting Controls
                 </CardTitle>
                 <CardDescription>
@@ -199,7 +170,7 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Sun className="mr-2 h-4 w-4" />
+                    <IconSun className="mr-2 h-4 w-4" />
                     Light Modes
                   </div>
                   <Badge variant={lightModeLabel === "Off" ? "secondary" : "default"} className="ml-2">
@@ -215,7 +186,7 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Sun className="mr-2 h-4 w-4" />
+                    <IconSun className="mr-2 h-4 w-4" />
                     High Beam
                   </div>
                   {getStatusBadge(telemetryData?.truck.lightsBeamHigh || false)}
@@ -229,10 +200,45 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    <IconAlertTriangle className="mr-2 h-4 w-4" />
                     Beacon Lights
                   </div>
                   {getStatusBadge(telemetryData?.truck.lightsBeacon || false)}
+                </Button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleCommand('toggle_indicator_left')}
+                    disabled={!isConnected}
+                  >
+                    <IconArrowLeft className="mr-2 h-4 w-4" />
+                    Left Signal
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => handleCommand('toggle_indicator_right')}
+                    disabled={!isConnected}
+                  >
+                    <IconArrowRight className="mr-2 h-4 w-4" />
+                    Right Signal
+                  </Button>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleCommand('toggle_hazard_lights')}
+                  disabled={!isConnected}
+                >
+                  <div className="flex items-center">
+                    <IconAlertTriangle className="mr-2 h-4 w-4" />
+                    Hazard Lights
+                  </div>
                 </Button>
               </CardContent>
             </Card>
@@ -243,7 +249,7 @@ export default function ControlPanel({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Settings className="mr-2 h-5 w-5" />
+                  <IconSettings className="mr-2 h-5 w-5" />
                   Transmission
                 </CardTitle>
                 <CardDescription>
@@ -265,7 +271,7 @@ export default function ControlPanel({
                     onClick={() => handleCommand('shift_up')}
                     disabled={!isConnected}
                   >
-                    <ArrowUp className="mr-2 h-4 w-4" />
+                    <IconArrowUp className="mr-2 h-4 w-4" />
                     Shift Up
                   </Button>
                   
@@ -275,7 +281,7 @@ export default function ControlPanel({
                     onClick={() => handleCommand('shift_down')}
                     disabled={!isConnected}
                   >
-                    <ArrowDown className="mr-2 h-4 w-4" />
+                    <IconArrowDown className="mr-2 h-4 w-4" />
                     Shift Down
                   </Button>
                 </div>
@@ -287,7 +293,7 @@ export default function ControlPanel({
                     onClick={() => handleCommand('retarder_increase')}
                     disabled={!isConnected}
                   >
-                    <ArrowUp className="mr-2 h-4 w-4" />
+                    <IconArrowUp className="mr-2 h-4 w-4" />
                     Retarder +
                   </Button>
 
@@ -297,7 +303,7 @@ export default function ControlPanel({
                     onClick={() => handleCommand('retarder_decrease')}
                     disabled={!isConnected}
                   >
-                    <ArrowDown className="mr-2 h-4 w-4" />
+                    <IconArrowDown className="mr-2 h-4 w-4" />
                     Retarder -
                   </Button>
                 </div>
@@ -310,11 +316,11 @@ export default function ControlPanel({
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Truck className="mr-2 h-5 w-5" />
+                  <IconTruck className="mr-2 h-5 w-5" />
                   Other Controls
                 </CardTitle>
                 <CardDescription>
-                  Horn, differential, and lift axle controls
+                  Horn, brakes, wipers, axles, and trailer coupling
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -325,7 +331,7 @@ export default function ControlPanel({
                     onClick={() => handleCommand('horn_short')}
                     disabled={!isConnected}
                   >
-                    <Volume2 className="mr-2 h-4 w-4" />
+                    <IconVolume2 className="mr-2 h-4 w-4" />
                     Horn
                   </Button>
                   
@@ -335,10 +341,36 @@ export default function ControlPanel({
                     onClick={() => handleCommand('horn_long')}
                     disabled={!isConnected}
                   >
-                    <Volume2 className="mr-2 h-4 w-4" />
+                    <IconVolume2 className="mr-2 h-4 w-4" />
                     Long Horn
                   </Button>
                 </div>
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleCommand('toggle_parking_brake')}
+                  disabled={!isConnected}
+                >
+                  <div className="flex items-center">
+                    <IconParkingCircle className="mr-2 h-4 w-4" />
+                    Parking Brake
+                  </div>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleCommand('cycle_wipers')}
+                  disabled={!isConnected}
+                >
+                  <div className="flex items-center">
+                    <IconWiper className="mr-2 h-4 w-4" />
+                    Wipers
+                  </div>
+                </Button>
 
                 <Button
                   variant="outline"
@@ -348,7 +380,7 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Lock className="mr-2 h-4 w-4" />
+                    <IconLock className="mr-2 h-4 w-4" />
                     Differential Lock
                   </div>
                 </Button>
@@ -361,7 +393,7 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Maximize2 className="mr-2 h-4 w-4" />
+                    <IconMaximize className="mr-2 h-4 w-4" />
                     Lift Axle
                   </div>
                 </Button>
@@ -374,9 +406,194 @@ export default function ControlPanel({
                   disabled={!isConnected}
                 >
                   <div className="flex items-center">
-                    <Maximize2 className="mr-2 h-4 w-4" />
+                    <IconMaximize className="mr-2 h-4 w-4" />
                     Trailer Lift Axle
                   </div>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleCommand('toggle_trailer_attach')}
+                  disabled={!isConnected}
+                >
+                  <div className="flex items-center">
+                    <IconLink className="mr-2 h-4 w-4" />
+                    Trailer Attach / Detach
+                  </div>
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Advanced Controls — for setups (e.g. Moza wheels) that already
+              cover the basics via their own device and just need the extras
+              not everyone needs. */}
+          <TabsContent value="advanced" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <IconLayoutSidebarLeftExpand className="mr-2 h-5 w-5" />
+                  Windows
+                </CardTitle>
+                <CardDescription>
+                  Roll each window up or down individually
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2 flex items-center">
+                    <IconLayoutSidebarLeftExpand className="mr-1 h-3 w-3" />
+                    Left Window
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('window_left_up')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowUp className="mr-2 h-4 w-4" />
+                      Up
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('window_left_down')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowDown className="mr-2 h-4 w-4" />
+                      Down
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2 flex items-center">
+                    <IconLayoutSidebarRight className="mr-1 h-3 w-3" />
+                    Right Window
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('window_right_up')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowUp className="mr-2 h-4 w-4" />
+                      Up
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('window_right_down')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowDown className="mr-2 h-4 w-4" />
+                      Down
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <IconArrowsVertical className="mr-2 h-5 w-5" />
+                  Suspension
+                </CardTitle>
+                <CardDescription>
+                  Trucks with adjustable air suspension only — truck front/rear
+                  and trailer adjust independently. Reset always resets both
+                  truck ends together.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Front</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('suspension_front_up')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowUp className="mr-2 h-4 w-4" />
+                      Raise
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('suspension_front_down')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowDown className="mr-2 h-4 w-4" />
+                      Lower
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Rear</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('suspension_rear_up')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowUp className="mr-2 h-4 w-4" />
+                      Raise
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('suspension_rear_down')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowDown className="mr-2 h-4 w-4" />
+                      Lower
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2 flex items-center">
+                    <IconTruck className="mr-1 h-3 w-3" />
+                    Trailer
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('trailer_suspension_up')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowUp className="mr-2 h-4 w-4" />
+                      Raise
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={() => handleCommand('trailer_suspension_down')}
+                      disabled={!isConnected}
+                    >
+                      <IconArrowDown className="mr-2 h-4 w-4" />
+                      Lower
+                    </Button>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => handleCommand('suspension_reset')}
+                  disabled={!isConnected}
+                >
+                  Reset Suspension (Front + Rear)
                 </Button>
               </CardContent>
             </Card>
