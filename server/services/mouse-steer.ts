@@ -23,20 +23,19 @@ export interface MouseSteerEditResult {
 }
 
 /**
- * Finds an existing "key: value;" (or "key: value" without a trailing
- * semicolon — SII formatting varies) assignment and replaces the value,
- * preserving whatever indentation/whitespace surrounds it. Doesn't attempt
- * to insert the key if it's missing — SII's block nesting means a blind
- * top-level append could land the key in the wrong block entirely, and
- * ETS2 writes these keys for every profile regardless of whether the
- * player customized them, so "missing entirely" would be unusual.
+ * Confirmed against a real controls.sii (not a guess anymore): these two
+ * values live as quoted strings inside a config_lines[] array, like:
+ *   config_lines[37]: "constant c_mousesteer 1.000000"
+ *   config_lines[40]: "constant c_relatsteer 1.000000"
+ * Matches and replaces just the numeric value, preserving everything else
+ * (the config_lines[N] index, quoting, line ending) exactly as-is.
  */
 function replaceScalarValue(content: string, key: string, value: string): { content: string; found: boolean } {
-  const re = new RegExp(`(\\b${key}\\s*:\\s*)([^;\\r\\n]*)(;?)`, 'i');
+  const re = new RegExp(`("constant\\s+${key}\\s+)([\\d.]+)(")`, 'i');
   if (!re.test(content)) {
     return { content, found: false };
   }
-  const updated = content.replace(re, (_match, prefix, _oldValue, semicolon) => `${prefix}${value}${semicolon}`);
+  const updated = content.replace(re, (_match, prefix, _oldValue, suffix) => `${prefix}${value}${suffix}`);
   return { content: updated, found: true };
 }
 
@@ -56,9 +55,9 @@ export function editMouseSteerInControlsSii(originalContent: string): MouseSteer
     return {
       success: false,
       message:
-        'Could not find c_mousesteer or c_relatsteer in this file — this hasn\'t been verified against a real ' +
-        'controls.sii yet, so the exact key format may differ from what this expects. Share a snippet containing ' +
-        'those two lines from your actual file so this can be corrected against real data.',
+        'Could not find c_mousesteer or c_relatsteer in this file. The expected format is ' +
+        '`config_lines[N]: "constant c_mousesteer VALUE"` (confirmed against a real controls.sii) — if your file ' +
+        'looks different, share a snippet of the relevant lines so this can be corrected.',
     };
   }
 

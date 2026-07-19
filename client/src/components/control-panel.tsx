@@ -16,7 +16,6 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconLock,
-  IconMaximize,
   IconActivity,
   IconLayoutSidebarLeftExpand,
   IconLayoutSidebarRight,
@@ -214,17 +213,18 @@ export default function ControlPanel({
                     disabled={!isConnected}
                   >
                     <IconArrowLeft className="mr-2 h-4 w-4" />
-                    Left Signal
+                    Left Turn
                   </Button>
 
                   <Button
                     variant="outline"
                     size="lg"
+                    className="justify-between"
                     onClick={() => handleCommand('toggle_indicator_right')}
                     disabled={!isConnected}
                   >
-                    <IconArrowRight className="mr-2 h-4 w-4" />
-                    Right Signal
+                    Right Turn
+                    <IconArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
 
@@ -392,10 +392,7 @@ export default function ControlPanel({
                   onClick={() => handleCommand('toggle_lift_axle')}
                   disabled={!isConnected}
                 >
-                  <div className="flex items-center">
-                    <IconMaximize className="mr-2 h-4 w-4" />
-                    Lift Axle
-                  </div>
+                  Lift Axle
                 </Button>
 
                 <Button
@@ -405,10 +402,7 @@ export default function ControlPanel({
                   onClick={() => handleCommand('toggle_trailer_lift_axle')}
                   disabled={!isConnected}
                 >
-                  <div className="flex items-center">
-                    <IconMaximize className="mr-2 h-4 w-4" />
-                    Trailer Lift Axle
-                  </div>
+                  Trailer Lift Axle
                 </Button>
 
                 <Button
@@ -593,7 +587,7 @@ export default function ControlPanel({
                   onClick={() => handleCommand('suspension_reset')}
                   disabled={!isConnected}
                 >
-                  Reset Suspension (Front + Rear)
+                  Reset Suspension
                 </Button>
               </CardContent>
             </Card>
