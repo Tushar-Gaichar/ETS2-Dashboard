@@ -22,21 +22,37 @@ export interface MouseSteerEditResult {
   updatedContent?: string;
 }
 
+interface ScalarCheckResult {
+  found: boolean;
+  alreadyCorrect: boolean;
+  previousValue?: string;
+  content: string;
+}
+
 /**
  * Confirmed against a real controls.sii (not a guess anymore): these two
  * values live as quoted strings inside a config_lines[] array, like:
  *   config_lines[37]: "constant c_mousesteer 1.000000"
  *   config_lines[40]: "constant c_relatsteer 1.000000"
- * Matches and replaces just the numeric value, preserving everything else
- * (the config_lines[N] index, quoting, line ending) exactly as-is.
+ * Checks the CURRENT value against the target first — only actually
+ * rewrites the line if it's different, so a file that's already correct
+ * comes back unchanged (and says so) instead of being blindly overwritten
+ * every time.
  */
-function replaceScalarValue(content: string, key: string, value: string): { content: string; found: boolean } {
+function checkAndReplaceScalarValue(content: string, key: string, targetValue: string): ScalarCheckResult {
   const re = new RegExp(`("constant\\s+${key}\\s+)([\\d.]+)(")`, 'i');
-  if (!re.test(content)) {
-    return { content, found: false };
+  const match = re.exec(content);
+  if (!match) {
+    return { found: false, alreadyCorrect: false, content };
   }
-  const updated = content.replace(re, (_match, prefix, _oldValue, suffix) => `${prefix}${value}${suffix}`);
-  return { content: updated, found: true };
+
+  const previousValue = match[2]!;
+  if (parseFloat(previousValue) === parseFloat(targetValue)) {
+    return { found: true, alreadyCorrect: true, previousValue, content };
+  }
+
+  const updated = content.replace(re, (_m, prefix, _old, suffix) => `${prefix}${targetValue}${suffix}`);
+  return { found: true, alreadyCorrect: false, previousValue, content: updated };
 }
 
 export function editMouseSteerInControlsSii(originalContent: string): MouseSteerEditResult {
@@ -46,9 +62,9 @@ export function editMouseSteerInControlsSii(originalContent: string): MouseSteer
 
   let content = originalContent;
 
-  const mouseSteer = replaceScalarValue(content, 'c_mousesteer', '1.000000');
+  const mouseSteer = checkAndReplaceScalarValue(content, 'c_mousesteer', '1.000000');
   content = mouseSteer.content;
-  const relatSteer = replaceScalarValue(content, 'c_relatsteer', '0.000000');
+  const relatSteer = checkAndReplaceScalarValue(content, 'c_relatsteer', '0.000000');
   content = relatSteer.content;
 
   if (!mouseSteer.found && !relatSteer.found) {
@@ -62,13 +78,31 @@ export function editMouseSteerInControlsSii(originalContent: string): MouseSteer
   }
 
   const missing = [!mouseSteer.found && 'c_mousesteer', !relatSteer.found && 'c_relatsteer'].filter(Boolean);
+  const describe = (name: string, r: ScalarCheckResult) =>
+    !r.found ? `${name} not found` : r.alreadyCorrect ? `${name} already correct` : `${name} corrected (was ${r.previousValue})`;
+
+  const bothAlreadyCorrect = mouseSteer.alreadyCorrect && relatSteer.alreadyCorrect;
+  const summary = `${describe('c_mousesteer', mouseSteer)}; ${describe('c_relatsteer', relatSteer)}`;
+
+  if (missing.length > 0) {
+    return {
+      success: true,
+      message: `${summary}. Couldn't find ${missing.join(' or ')} in this file — double check the result before using it.`,
+      updatedContent: content,
+    };
+  }
+
+  if (bothAlreadyCorrect) {
+    return {
+      success: true,
+      message: `Already set correctly — no changes needed. (${summary})`,
+      updatedContent: content,
+    };
+  }
 
   return {
     success: true,
-    message:
-      missing.length > 0
-        ? `Updated ${mouseSteer.found ? 'c_mousesteer' : 'c_relatsteer'}, but couldn't find ${missing.join(' or ')} in this file — double check the result before using it.`
-        : 'Both values updated. Download the file below, close ETS2 if it isn\'t already, and replace your profile\'s controls.sii with this one.',
+    message: `${summary}. Download the file below, close ETS2 if it isn't already, and replace your profile's controls.sii with this one.`,
     updatedContent: content,
   };
 }
