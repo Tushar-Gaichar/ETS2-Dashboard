@@ -5,7 +5,6 @@ import { storage } from "./storage";
 import { readTelemetryData, updateTelemetryServerUrl, getTelemetryServerConfig } from "./services/telemetry";
 import { telemetryDataSchema, controlCommandSchema } from "@shared/schema";
 import { sendControlCommand } from "./services/controls";
-import { loadControlsOverridesFromText, autoLoadControlBindings, getLastParsedBindings } from "./services/controls";
 import { editMouseSteerInControlsSii } from "./services/mouse-steer";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -19,32 +18,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch telemetry data" });
-    }
-  });
-
-  // Upload controls.sii text to parse for the bindings reference display
-  app.post('/api/controls-overrides', (req, res) => {
-    try {
-      const { content } = req.body as { content?: string };
-      if (!content || typeof content !== 'string') {
-        return res.status(400).json({ message: 'Missing controls.sii content' });
-      }
-      const bindings = loadControlsOverridesFromText(content);
-      res.json({ message: 'Bindings loaded', mappings: bindings.length, bindings });
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to load bindings' });
-    }
-  });
-
-  // Returns whatever bindings are currently loaded, auto-detecting the most
-  // recently modified profile's controls.sii if nothing's been uploaded yet.
-  app.get('/api/controls-bindings', (_req, res) => {
-    try {
-      const existing = getLastParsedBindings();
-      const bindings = existing.length > 0 ? existing : autoLoadControlBindings();
-      res.json({ bindings });
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to load bindings' });
     }
   });
 
