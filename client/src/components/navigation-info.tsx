@@ -6,7 +6,13 @@ interface NavigationInfoProps {
 }
 
 export default function NavigationInfo({ telemetryData }: NavigationInfoProps) {
-  if (!telemetryData) {
+  // A connected session with no active job/route still has a `navigation`
+  // object, just filled with placeholder zeros (estimatedDistance: 0,
+  // estimatedTime: an epoch date) — treat that the same as "no data" instead
+  // of rendering "0 m" / a meaningless ETA / "0 km/h" as if they were real.
+  const hasActiveNavigation = !!telemetryData && telemetryData.navigation.estimatedDistance > 0;
+
+  if (!hasActiveNavigation) {
     return (
       <div className="bg-surface rounded-lg p-4">
         <h3 className="text-lg font-semibold mb-3 flex items-center">
