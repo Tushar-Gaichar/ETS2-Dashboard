@@ -267,6 +267,7 @@ export default function MapPage() {
   const [clickToRouteEnabled, setClickToRouteEnabled] = useState(false);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [routing, setRouting] = useState(false);
+  const [showDevNotice, setShowDevNotice] = useState(true);
   const clickToRouteEnabledRef = useRef(clickToRouteEnabled);
   clickToRouteEnabledRef.current = clickToRouteEnabled;
 
@@ -497,6 +498,22 @@ export default function MapPage() {
       `}</style>
 
       <div ref={mapContainerRef} className="absolute inset-0" />
+
+      {showDevNotice && (
+        <div className="absolute left-3 right-16 top-3 z-20">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/70 px-4 py-2.5 shadow-2xl backdrop-blur-md">
+            <span className="text-sm text-neutral-200">Map is still under development</span>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setShowDevNotice(false)}
+              className="h-6 w-6 shrink-0 text-neutral-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Buttons, speed badge, and route bar all stacked in one flex column
           (in that order) so none of them can overlap regardless of how tall
