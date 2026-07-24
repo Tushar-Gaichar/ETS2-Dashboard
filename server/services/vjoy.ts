@@ -24,6 +24,9 @@
 // Fallback device number used when ETS2_VJOY_DEVICE_ID isn't set. Change
 // this if your vJoy device number differs and you don't want to rely on the
 // env var.
+import { defaultVjoyButtonMap } from "../../shared/vjoy-buttons";
+export { defaultVjoyButtonMap } from "../../shared/vjoy-buttons";
+
 const DEFAULT_VJOY_DEVICE_ID = 3;
 
 type VjoyButton = { set(pressed: boolean): void; get(): boolean };
@@ -140,42 +143,6 @@ async function ensureDevice(): Promise<VjoyDeviceInstance> {
 // command -> vJoy button number. Bind each of these to the matching in-game
 // action under ETS2's Options -> Controls, the same way you'd bind a real
 // button box. Numbers 19+ are left free on a 32-button device for future use.
-export const defaultVjoyButtonMap: Record<string, number> = {
-  toggle_engine: 1,
-  toggle_electric: 2,
-  toggle_lights_parking: 3, // cycles the game's actual light modes (off/parking/low beam) — the only light-mode key ETS2 exposes
-  toggle_lights_beam_high: 5,
-  toggle_lights_beacon: 6,
-  horn_short: 9,
-  horn_long: 10,
-  toggle_cruise_control: 11,
-  toggle_differential_lock: 13,
-  toggle_lift_axle: 14,
-  toggle_trailer_lift_axle: 15,
-  shift_up: 16,
-  shift_down: 17,
-  retarder_increase: 19,
-  retarder_decrease: 20,
-  window_left_up: 21,
-  window_left_down: 22,
-  window_right_up: 23,
-  window_right_down: 24,
-  suspension_front_up: 25,
-  suspension_front_down: 26,
-  suspension_rear_up: 27,
-  suspension_rear_down: 28,
-  suspension_reset: 29,
-  toggle_parking_brake: 30,
-  cycle_wipers: 31,
-  toggle_indicator_left: 32,
-  toggle_indicator_right: 33,
-  toggle_hazard_lights: 34,
-  trailer_suspension_up: 35,
-  trailer_suspension_down: 36,
-  toggle_trailer_attach: 37,
-  toggle_engine_brake: 38,
-};
-
 export function getVjoyButtonForCommand(command: string): number | undefined {
   return defaultVjoyButtonMap[command];
 }
